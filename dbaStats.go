@@ -18,7 +18,7 @@ type DBAStats struct {
 
 func DBAStatsFromString(csv string, client string) (*DBAStats, error) {
 	vals := strings.Split(csv, ",")
-	if len(vals) != 5 {
+	if len(vals) != 6 {
 		return nil, fmt.Errorf("invalid DBAStats string: %s", csv)
 	}
 
@@ -47,6 +47,11 @@ func DBAStatsFromString(csv string, client string) (*DBAStats, error) {
 		return nil, err
 	} else {
 		stats.Mean = float32(f)
+	}
+	if n, err := strconv.Atoi(vals[5]); err != nil {
+		return nil, err
+	} else {
+		stats.Num = n
 	}
 
 	stats.Client = client

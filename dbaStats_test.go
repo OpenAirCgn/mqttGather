@@ -1,5 +1,7 @@
 package mqttGather
 
+import "testing"
+
 func RandomDBAStats() DBAStats {
 	return DBAStats{
 		"c4:dd:57:66:95:60",
@@ -9,5 +11,20 @@ func RandomDBAStats() DBAStats {
 		0.371,
 		55.048,
 		86,
+	}
+}
+
+func TestDBAStatsFromString(t *testing.T) {
+	str := "52.683,57.619,55.152,0.595,55.272,86"
+	stats, err := DBAStatsFromString(str, "abc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Num != 86 {
+		t.Fatal("num != 86")
+	}
+
+	if stats.Average != 55.152 {
+		t.Fatalf("average != 55.152 %f", stats.Average)
 	}
 }
