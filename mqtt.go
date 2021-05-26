@@ -1,16 +1,15 @@
 package mqttGather
 
 import (
-	"fmt"
-	"os"
+	"log"
 
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 )
 
 type Mqtt struct {
 	Broker   string
-	ClientId string
 	Topic    string
+	ClientId string
 
 	db     DB
 	client MQTT.Client
@@ -22,30 +21,31 @@ func (m *Mqtt) Disconnect() error {
 }
 
 func (m *Mqtt) msgHandler(c MQTT.Client, msg MQTT.Message) {
-	fmt.Fprintf(os.Stdout, "%#v : %s -> %s\n", c, msg.Topic(), string(msg.Payload()))
+	//fmt.Fprintf(os.Stdout, "%#v : %s -> %s\n", c, msg.Topic(), string(msg.Payload()))
 
 	// /opennoise/c4:dd:57:66:95:60/dba_stats
-	client := msg.Topic()[11 : 11+17]
-	stats, err := DBAStatsFromString(string(msg.Payload()), client)
+	producer := msg.Topic()[11 : 11+17]
+
+	csv := string(msg.Payload())
+	stats, err := DBAStatsFromString(csv, producer)
 	if err != nil {
-		println("here1")
-		fmt.Printf("%v", err)
+		log.Printf("E: could not parse %s : %v", csv, err)
 	} else {
+		log.Printf("D: recv %s : %s", msg.Topic(), csv)
 		if _, err := m.db.SaveNow(stats); err != nil {
-			println("here2")
-			println(err)
+			log.Printf("E: could not save %s (raw:%s) : %v", stats, csv, err)
 		}
 	}
 
 }
 
-func NewMQTT(db DB) (*Mqtt, error) {
+func NewMQTT(cfg *RunConfig, db DB) (*Mqtt, error) {
 	mqtt := Mqtt{
-		"tcp://test.mosquitto.org:1883",
-		"mqttGather",
-		"/opennoise/#",
-		db,
-		nil,
+		Broker:   cfg.Host,
+		Topic:    cfg.Topic,
+		ClientId: cfg.ClientId,
+
+		db: db,
 	}
 
 	opts := MQTT.NewClientOptions()
@@ -53,15 +53,20 @@ func NewMQTT(db DB) (*Mqtt, error) {
 	opts.SetClientID(mqtt.ClientId)
 
 	opts.SetDefaultPublishHandler(func(client MQTT.Client, msg MQTT.Message) {
-		fmt.Printf("unexpected: %s -> %s", msg.Topic(), string(msg.Payload()))
+		log.Printf("I: unexpected message on topic: %s : %s", msg.Topic(), string(msg.Payload()))
+		// TODO log to db
 	})
 
 	mqtt.client = MQTT.NewClient(opts)
-	if token := mqtt.client.Connect(); token.Wait() && token.Error() != nil {
+	token := mqtt.client.Connect()
+
+	if token.Wait() && token.Error() != nil {
 		return nil, token.Error()
 	}
 
-	if token := mqtt.client.Subscribe(mqtt.Topic, byte(0), mqtt.msgHandler); token.Wait() && token.Error() != nil {
+	token = mqtt.client.Subscribe(mqtt.Topic, byte(0), mqtt.msgHandler)
+
+	if token.Wait() && token.Error() != nil {
 		return nil, token.Error()
 	}
 

@@ -67,7 +67,3 @@ Var:  %f
 Mean: %f
 Num:  %d`, s.Min, s.Max, s.Average, s.AverageVar, s.Mean, s.Num)
 }
-
-func main() {
-	fmt.Println("vim-go")
-}
