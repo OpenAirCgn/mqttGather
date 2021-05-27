@@ -14,11 +14,13 @@ type Mqtt struct {
 	Topic    string
 	ClientId string
 
+	cfg    *RunConfig
 	db     DB
 	client MQTT.Client
 }
 
 func (m *Mqtt) Disconnect() error {
+	m.db.Close()
 	m.client.Disconnect(1000)
 	return nil
 }
@@ -37,18 +39,40 @@ func (m *Mqtt) msgHandler(c MQTT.Client, msg MQTT.Message) {
 		log.Printf("D: recv %s : %s", msg.Topic(), csv)
 		if _, err := m.db.SaveNow(stats); err != nil {
 			log.Printf("E: could not save %s (raw:%s) : %v", stats, csv, err)
+			if err := m.connectDB(); err != nil {
+				log.Printf("E: could not reconnect to db (%v)", err)
+			}
 		}
 	}
 
 }
 
-func NewMQTT(cfg *RunConfig, db DB) (*Mqtt, error) {
+func (m *Mqtt) connectDB() error {
+	if m.db != nil {
+		log.Printf("D: closing existing connection")
+		m.db.Close()
+	}
+
+	if db, err := NewDatabase(m.cfg.SqlLiteConnect); err != nil {
+		return err
+	} else {
+		m.db = db
+	}
+	return nil
+}
+
+func NewMQTT(cfg *RunConfig) (*Mqtt, error) {
 	mqtt := Mqtt{
 		Broker:   cfg.Host,
 		Topic:    cfg.Topic,
 		ClientId: cfg.ClientId,
 
-		db: db,
+		cfg: cfg,
+	}
+
+	if err := mqtt.connectDB(); err != nil {
+		log.Printf("E: could not connect to DB: %v", err)
+		return nil, err
 	}
 
 	opts := MQTT.NewClientOptions()

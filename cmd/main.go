@@ -72,12 +72,7 @@ func main() {
 		summary(*rc)
 	}
 
-	db, err := mqttGather.NewDatabase(*sqliteDBName)
-	if err != nil {
-		panic(err)
-	}
-	defer db.Close()
-	mqtt, err := mqttGather.NewMQTT(rc, db)
+	mqtt, err := mqttGather.NewMQTT(rc)
 
 	if err != nil {
 		panic(err)
