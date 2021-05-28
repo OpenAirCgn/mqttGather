@@ -3,7 +3,7 @@
 # for plattforms:
 #   - osx, linux, windows
 
-VERSION=`git describe --tags`
+VERSION=`git describe --tags --dirty`
 DATE=`date +%Y%m%d`
 LDFLAGS="-X main.version=${VERSION}_${DATE}"
 

@@ -11,6 +11,7 @@ func TestInsert(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
+
 	stats := RandomDBAStats()
 	i, err := db.SaveNow(&stats)
 	if err != nil {

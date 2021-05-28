@@ -1,0 +1,59 @@
+
+# Functionality to collect MQTT data into DB
+
+	Usage of release/mqttGather.v0.2.1.linux:
+	  -c string
+		name of (optional) config file
+	  -clientID string
+		clientId to use for connection
+	  -host string
+		host to connect to
+	  -silent
+		psssh!
+	  -sqlite string
+		connect string to use for sqlite, when in doubt: provide a filename
+	  -topic string
+		topic to subscribe to
+	  -version
+		display version information and exit
+
+Flags should hopefully be obvious. The `-silent` flag currently only
+supresses the initial banner providing version and connection info.
+
+
+## Config File
+
+In order to avoid having to type out a a bunch of flags all the time,
+they may be collected in a JSON config as follows:
+
+	{
+		"sqlite":":memory:",
+		"host":"tcp://test.mosquitto.org:1883",
+		"topic":"/opennoise/#",
+		"client_id":"mqttTest"
+	}
+
+Flags provided on the command line take priority over those in the
+config file.
+
+## Building
+
+Source the `xcompile.sh` script which builds executables for linux,
+windows and macos. This also extracts the last accessible tag from the
+git repository, which is hopefully the release we are trying to build,
+using:
+
+	git describe --tags --dirty
+
+(In case we are further along than the tag, `-dirty` is appended)
+
+
+## TODOS
+
+- -silent should suppress logging
+- logging to file with rotation
+- TLS
+- different backends
+- different plugins/topics to gather other sensor data
+- generate random / uuid / mac based clientids to not kick other clients
+
