@@ -47,6 +47,20 @@ using:
 
 (In case we are further along than the tag, `-dirty` is appended)
 
+The complete binaries are located in the folder `release` with names appended
+to contain version and plattform information:
+
+	$ ls release
+	mqttGather.v0.1.darwin
+	mqttGather.v0.1.linux
+	mqttGather.v0.1.windows
+	mqttGather.v0.2.1RC1.darwin
+	mqttGather.v0.2.1RC1.linux
+	mqttGather.v0.2.1RC1.windows
+
+Compiled release binaries may also be downloaded from the Github[release
+page](https://github.com/OpenAirCgn/mqttGather/releases)
+
 
 ## TODOS
 
