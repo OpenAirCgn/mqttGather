@@ -58,7 +58,7 @@ to contain version and plattform information:
 	mqttGather.v0.2.1RC1.linux
 	mqttGather.v0.2.1RC1.windows
 
-Compiled release binaries may also be downloaded from the Github[release
+Compiled release binaries may also be downloaded from the Github [release
 page](https://github.com/OpenAirCgn/mqttGather/releases)
 
 
