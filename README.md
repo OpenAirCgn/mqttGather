@@ -70,4 +70,4 @@ page](https://github.com/OpenAirCgn/mqttGather/releases)
 - different backends
 - different plugins/topics to gather other sensor data
 - generate random / uuid / mac based clientids to not kick other clients
-
+- Weather Data Import: https://www.dwd.de/DE/leistungen/klimadatendeutschland/klimadatendeutschland.html
