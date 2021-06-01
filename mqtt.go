@@ -2,6 +2,7 @@ package mqttGather
 
 import (
 	"crypto/tls"
+	"fmt"
 	"log"
 	"net/url"
 	"time"
@@ -24,12 +25,20 @@ func (m *Mqtt) Disconnect() error {
 	m.client.Disconnect(1000)
 	return nil
 }
-
+func retrieveClientId(topic string) string {
+	// /opennoise/c4:dd:57:66:95:60/dba_stats
+	// producer := msg.Topic()[11 : 11+17]
+	if len(topic) < 28 {
+		log.Printf("E: invalid topic: %s", topic)
+		return fmt.Sprintf("?:%s", topic)
+	}
+	return topic[11 : 11+17]
+}
 func (m *Mqtt) msgHandler(c MQTT.Client, msg MQTT.Message) {
 	//fmt.Fprintf(os.Stdout, "%#v : %s -> %s\n", c, msg.Topic(), string(msg.Payload()))
 
 	// /opennoise/c4:dd:57:66:95:60/dba_stats
-	producer := msg.Topic()[11 : 11+17]
+	producer := retrieveClientId(msg.Topic())
 
 	csv := string(msg.Payload())
 	stats, err := DBAStatsFromString(csv, producer)
