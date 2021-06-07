@@ -20,7 +20,25 @@ func TestWeatherDataDownload(t *testing.T) {
 }
 
 func TestImportWind(t *testing.T) {
-	err := ImportWind("wind.sqlite3")
+	err := ImportWind("weather.sqlite3")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+func TestImportSolar(t *testing.T) {
+	err := ImportSolar("weather.sqlite3")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+func TestImportTemperature(t *testing.T) {
+	err := ImportTemperature("weather.sqlite3")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+func TestImportPrecipitation(t *testing.T) {
+	err := ImportPrecipitation("weather.sqlite3")
 	if err != nil {
 		t.Fatal(err)
 	}
