@@ -1,6 +1,20 @@
 package mqttGather
 
-import "time"
+import (
+	"archive/zip"
+	"database/sql"
+	"encoding/csv"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"net/http"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	_ "github.com/mattn/go-sqlite3"
+)
 
 // utilities to enrich the gathered MQTT data with weather statistics
 // from DWD https://www.dwd.de/DE/leistungen/klimadatendeutschland/klimadatendeutschland.html
@@ -37,6 +51,25 @@ type Temperature struct {
 	DewPoint   float32
 }
 
+const DB_TABLE_TEMPERATURE = `
+	CREATE TABLE IF NOT EXISTS temperature (
+		temperature_id INTEGER PRIMARY KEY AUTOINCREMENT,
+		station        VARCHAR,
+		ts             INTEGER,
+		temp2m         FLOAT,
+		temp5cm        FLOAT,
+		humidity2m     FLOAT,
+		dewPoint       FLOAT
+	)
+`
+const DB_INSERT_TEMPERATURE = `
+	INSERT INTO precipitation (
+		station, ts, temp2m, temp5cm, humidity2m, dewPoint
+	) VALUE (
+		:station, :ts, :temp2m, :temp5cm, :humidity2m, :dewPoint
+	)
+`
+
 // https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/10_minutes/precipitation/recent/10minutenwerte_nieder_02667_akt.zip
 
 // STATIONS_ID;MESS_DATUM;  QN;RWS_DAU_10;RWS_10;RWS_IND_10;eor
@@ -53,7 +86,7 @@ type Precipitation struct {
 
 const DB_TABLE_PRECIPITATION = `
 	CREATE TABLE IF NOT EXISTS precipitation (
-		precipitation INTEGER PRIMARY KEY AUTOINCREMENT,
+		precipitation_id INTEGER PRIMARY KEY AUTOINCREMENT,
 		station VARCHAR,
 		ts INTEGER,
 		duration INTEGER,
@@ -100,7 +133,8 @@ const DB_INSERT_SOLAR = `
 	)
 `
 
-// https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/10_minutes/wind/recent/10minutenwerte_wind_05490_akt.zip
+const WIND_URL = "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/10_minutes/wind/recent/10minutenwerte_wind_02667_akt.zip"
+
 // STATIONS_ID;MESS_DATUM;  QN;FF_10;DD_10;eor
 //       5404;201911300000;    3;   3.9; 250;eor
 // FF_10 average windspeed
@@ -111,19 +145,164 @@ type Wind struct {
 	Direction int
 }
 
+const (
+	WIND_STATIONS_ID_IDX = iota
+	WIND_MESS_DATUM_IDX  // YYYYMMDDHH
+	WIND_QN_3_IDX        // quality level ...
+	WIND_F_IDX           // f is for Force?
+	WIND_D_IDX           // Direction?
+	WIND_EOR_IDX         // no clue
+
+	WIND_DATEFMT = "200601021504MST"
+)
+
 const DB_TABLE_WIND = `
 	CREATE TABLE IF NOT EXISTS wind (
-	wind_id INTEGER PRIMARY KEY AUTOINCREMENT,
-	station VARCHAR,
-	ts INTEGER,
-	wind_speed FLOAT,
-	direction INTEGER
-)`
+		wind_id INTEGER PRIMARY KEY AUTOINCREMENT,
+		station VARCHAR,
+		ts INTEGER,
+		wind_speed FLOAT,
+		direction INTEGER
+	)`
 
 const DB_INSERT_WIND = `
 	INSERT INTO wind (
 		station, ts, wind_speed, direction
-	) VALUE (
+	) VALUES (
 		:station, :ts, :wind_speed, :direction
 	)
 `
+
+func (w *Wind) Insert(stmt *sql.Stmt) error {
+	_, err := stmt.Exec(
+		w.Station,
+		w.Timestamp.Unix(),
+		w.Windspeed,
+		w.Direction,
+	)
+	return err
+}
+
+func ImportWind(db_fn string) error {
+	db, err := sql.Open("sqlite3", db_fn)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	_, err = db.Exec(DB_TABLE_WIND)
+	if err != nil {
+		panic(err)
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		panic(err)
+	}
+	defer tx.Commit()
+
+	stmt, err := tx.Prepare(DB_INSERT_WIND)
+	if err != nil {
+		tx.Rollback()
+		panic(err)
+	}
+	defer stmt.Close()
+
+	reader, err := getZippedAsReader(WIND_URL)
+	if err != nil {
+		tx.Rollback()
+		panic(err)
+
+	}
+
+	csvReader := csv.NewReader(reader)
+	csvReader.Comma = ';'
+	i := 0
+	var wind Wind
+	for {
+		println(i)
+		i += 1
+		record, err := csvReader.Read()
+		if err != nil {
+			if err == io.EOF {
+				break // done
+			}
+			tx.Rollback()
+			panic(err)
+		}
+		if record[0] == "STATIONS_ID" {
+			continue // header
+		}
+
+		_station := strings.TrimSpace(record[WIND_STATIONS_ID_IDX])
+		_hour := record[WIND_MESS_DATUM_IDX]
+		_windSpeed := record[WIND_F_IDX]
+		_direction := record[WIND_D_IDX]
+
+		hour, err := time.Parse(WIND_DATEFMT, _hour+"MEZ")
+		if err != nil {
+			tx.Rollback()
+			panic(err)
+		}
+
+		windSpeed, err := strconv.ParseFloat(strings.TrimSpace(_windSpeed), 32)
+		if err != nil {
+			tx.Rollback()
+			panic(err)
+		}
+
+		direction, err := strconv.ParseInt(strings.TrimSpace(_direction), 10, 32)
+
+		if err != nil {
+			tx.Rollback()
+			panic(err)
+		}
+
+		wind.Station = Station(_station)
+		wind.Timestamp = hour
+		wind.Windspeed = float32(windSpeed)
+		wind.Direction = int(direction)
+		if err = wind.Insert(stmt); err != nil {
+			tx.Rollback()
+			panic(err)
+		}
+	}
+	return nil
+}
+
+// TODO figure out how to close all the intermediate readers.
+func getZippedAsReader(url string) (io.Reader, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	tmpFile, err := ioutil.TempFile(os.TempDir(), "dwd-")
+	if err != nil {
+		return nil, err
+	}
+
+	defer os.Remove(tmpFile.Name())
+
+	size, err := io.Copy(tmpFile, resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// go docs are very cavalier about what the size parameter is meant to mean.
+	// Do I have to check the lenght before decoding? Or can I just put something random in?
+
+	zipreader, err := zip.NewReader(tmpFile, size)
+
+	for _, f := range zipreader.File {
+		fmt.Printf("reading: %s\n", f.Name)
+		if fileReader, err := f.Open(); err != nil {
+			return nil, err
+		} else {
+			return fileReader, nil
+		}
+	}
+	return nil, nil // can't happen
+
+}
