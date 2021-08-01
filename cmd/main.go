@@ -14,7 +14,7 @@ var (
 	version        string /* left for the linker to fill */
 	sqliteDBName   = flag.String("sqlite", "", "connect string to use for sqlite, when in doubt: provide a filename")
 	topic          = flag.String("topic", "", "topic to subscribe to") // todo, this should later be a plugin for sensors
-	telemetryTopic = flag.String("telemetry-topic", "", "topic to subscribe to")
+	telemetryTopic = flag.String("telemetry-topic", "", "topic to subscribe to for telemetry data")
 	host           = flag.String("host", "", "host to connect to")
 	clientId       = flag.String("clientID", "", "clientId to use for connection")
 	silent         = flag.Bool("silent", false, "psssh!")

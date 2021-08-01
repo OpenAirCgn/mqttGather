@@ -2,6 +2,7 @@ package mqttGather
 
 import (
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 )
@@ -76,14 +77,21 @@ func parseTelemetryData(t Type, data string) interface{} {
 		fallthrough
 	case "frt":
 		fallthrough
-	case "flg": // todo - flag semantics
-		fallthrough
 	case "rst": // todo - reset reason semantics
 		if i, err := strconv.Atoi(data); err != nil {
+			log.Printf("E: valid number in telemetry >%s< : %s", t, data)
 			return -1
 		} else {
 			return i
 		}
+	case "flg":
+		if i, err := strconv.ParseInt(data, 16, 32); err != nil {
+			log.Printf("E: valid number in telemetry >flg< : %s", data)
+			return -1
+		} else {
+			return int(i)
+		}
+
 	case "esq": // todo - sig qual. semantics
 		fallthrough
 	case "ver":
