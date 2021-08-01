@@ -14,5 +14,6 @@ fi
 
 for os in darwin linux windows; do
 	GOOS=${os} GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o ${REL_DIR}/mqttGather.${VERSION}.${os} cmd/main.go
+	GOOS=${os} GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o ${REL_DIR}/ca.${VERSION}.${os} cmd/ca/ca.go
 done
 
