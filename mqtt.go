@@ -11,9 +11,10 @@ import (
 )
 
 type Mqtt struct {
-	Broker   string
-	Topic    string
-	ClientId string
+	Broker         string
+	Topic          string
+	TelemetryTopic string
+	ClientId       string
 
 	cfg    *RunConfig
 	db     DB
@@ -56,6 +57,28 @@ func (m *Mqtt) msgHandler(c MQTT.Client, msg MQTT.Message) {
 
 }
 
+func (m *Mqtt) msgHandlerTelemetry(c MQTT.Client, msg MQTT.Message) {
+	//fmt.Fprintf(os.Stdout, "%#v : %s -> %s\n", c, msg.Topic(), string(msg.Payload()))
+
+	// /opennoise/c4:dd:57:66:95:60/telemetry
+	producer := retrieveClientId(msg.Topic())
+
+	payload := string(msg.Payload())
+	telemetry, err := TelemetryFromPayload(payload, producer)
+	if err != nil {
+		log.Printf("E: could not parse %s : %v", payload, err)
+	} else {
+		log.Printf("D: recv %s : %s", msg.Topic(), payload)
+		if _, err := m.db.SaveTelemetryNow(telemetry); err != nil {
+			log.Printf("E: could not save %s (raw:%s) : %v", telemetry, payload, err)
+			if err := m.connectDB(); err != nil {
+				log.Printf("E: could not reconnect to db (%v)", err)
+			}
+		}
+	}
+
+}
+
 func (m *Mqtt) connectDB() error {
 	if m.db != nil {
 		log.Printf("D: closing existing connection")
@@ -72,9 +95,10 @@ func (m *Mqtt) connectDB() error {
 
 func NewMQTT(cfg *RunConfig) (*Mqtt, error) {
 	mqtt := Mqtt{
-		Broker:   cfg.Host,
-		Topic:    cfg.Topic,
-		ClientId: cfg.ClientId,
+		Broker:         cfg.Host,
+		Topic:          cfg.Topic,
+		TelemetryTopic: cfg.TelemetryTopic,
+		ClientId:       cfg.ClientId,
 
 		cfg: cfg,
 	}
@@ -104,11 +128,21 @@ func NewMQTT(cfg *RunConfig) (*Mqtt, error) {
 		opts := c.OptionsReader()
 		log.Printf("D: connect: %v", opts.ClientID())
 		token := mqtt.client.Subscribe(mqtt.Topic, byte(0), mqtt.msgHandler)
+
+		// Stats Topic
 		if token.Wait() && token.Error() != nil {
 			log.Printf("E: subscribtion failed: %s (%v)", mqtt.Topic, token.Error())
 			// TODO figure out what to do here: sit under a tree crying and waiting to die?
 		} else {
 			log.Printf("D: subscribed to: %s", mqtt.Topic)
+		}
+
+		// Telemetry Topic
+		token = mqtt.client.Subscribe(mqtt.TelemetryTopic, byte(0), mqtt.msgHandlerTelemetry)
+		if token.Wait() && token.Error() != nil {
+			log.Printf("E: subscribtion failed: %s (%v)", mqtt.TelemetryTopic, token.Error())
+		} else {
+			log.Printf("D: subscribed to: %s", mqtt.TelemetryTopic)
 		}
 	})
 	opts.SetReconnectingHandler(func(c MQTT.Client, o *MQTT.ClientOptions) {

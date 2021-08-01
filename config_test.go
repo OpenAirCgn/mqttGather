@@ -14,8 +14,12 @@ func TestLoad(t *testing.T) {
 		t.Fatalf("wrong host: %s", rc.Host)
 
 	}
-	if rc.Topic != "/opennoise/#" {
+	if rc.Topic != "/opennoise/+/dba_stats" {
 		t.Fatalf("wrong topic: %s", rc.Topic)
+
+	}
+	if rc.TelemetryTopic != "/opennoise/+/telemetry" {
+		t.Fatalf("wrong telemetry topic: %s", rc.Topic)
 
 	}
 	if rc.ClientId != "mqttTest" {

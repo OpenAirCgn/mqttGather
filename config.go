@@ -10,6 +10,7 @@ type RunConfig struct {
 	SqlLiteConnect string `json:"sqlite"`
 	Host           string `json:"host"`
 	Topic          string `json:"topic"`
+	TelemetryTopic string `json:"telemetry_topic"`
 	ClientId       string `json:"client_id"`
 }
 

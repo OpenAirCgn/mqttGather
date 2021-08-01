@@ -14,6 +14,8 @@
 		connect string to use for sqlite, when in doubt: provide a filename
 	  -topic string
 		topic to subscribe to
+	  -telemetry-topic string
+	        telemetry topic to subscribe to
 	  -version
 		display version information and exit
 
@@ -29,7 +31,8 @@ they may be collected in a JSON config as follows:
 	{
 		"sqlite":":memory:",
 		"host":"tcp://test.mosquitto.org:1883",
-		"topic":"/opennoise/#",
+		"topic":"/opennoise/+/dba_stats"
+		"telemetry-topic":"/opennoise/+/telemetry",
 		"client_id":"mqttTest"
 	}
 
@@ -63,11 +66,12 @@ page](https://github.com/OpenAirCgn/mqttGather/releases)
 
 
 ## TODOS
-
+- telemetry: handle flag and ESQ values
+- db : denormalize client and migrate
+- IN PROGRESS Weather Data Import: https://www.dwd.de/DE/leistungen/klimadatendeutschland/klimadatendeutschland.html
 - -silent should suppress logging
-- logging to file with rotation
+- logging to file / DB with rotation
 - TLS
 - different backends
 - different plugins/topics to gather other sensor data
 - generate random / uuid / mac based clientids to not kick other clients
-- Weather Data Import: https://www.dwd.de/DE/leistungen/klimadatendeutschland/klimadatendeutschland.html

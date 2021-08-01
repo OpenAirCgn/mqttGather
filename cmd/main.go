@@ -11,14 +11,15 @@ import (
 )
 
 var (
-	version      string /* left for the linker to fill */
-	sqliteDBName = flag.String("sqlite", "", "connect string to use for sqlite, when in doubt: provide a filename")
-	topic        = flag.String("topic", "", "topic to subscribe to") // todo, this should later be a plugin for sensors
-	host         = flag.String("host", "", "host to connect to")     // todo, this should later be a plugin for sensors
-	clientId     = flag.String("clientID", "", "clientId to use for connection")
-	silent       = flag.Bool("silent", false, "psssh!")
-	config       = flag.String("c", "", "name of (optional) config file")
-	_version     = flag.Bool("version", false, "display version information and exit")
+	version        string /* left for the linker to fill */
+	sqliteDBName   = flag.String("sqlite", "", "connect string to use for sqlite, when in doubt: provide a filename")
+	topic          = flag.String("topic", "", "topic to subscribe to") // todo, this should later be a plugin for sensors
+	telemetryTopic = flag.String("telemetry-topic", "", "topic to subscribe to")
+	host           = flag.String("host", "", "host to connect to")
+	clientId       = flag.String("clientID", "", "clientId to use for connection")
+	silent         = flag.Bool("silent", false, "psssh!")
+	config         = flag.String("c", "", "name of (optional) config file")
+	_version       = flag.Bool("version", false, "display version information and exit")
 )
 
 func banner() {
@@ -54,6 +55,8 @@ func main() {
 			panic(err)
 		}
 
+	} else {
+		rc = &mqttGather.RunConfig{}
 	}
 	if *sqliteDBName != "" {
 		rc.SqlLiteConnect = *sqliteDBName
@@ -63,6 +66,9 @@ func main() {
 	}
 	if *topic != "" {
 		rc.Topic = *topic
+	}
+	if *telemetryTopic != "" {
+		rc.TelemetryTopic = *telemetryTopic
 	}
 	if *clientId != "" {
 		rc.ClientId = *clientId

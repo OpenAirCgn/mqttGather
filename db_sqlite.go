@@ -80,11 +80,101 @@ func (s *SqliteDB) SaveNow(stats *DBAStats) (int64, error) {
 		stats.AverageVar,
 		stats.Mean,
 		stats.Num,
+		// NOW is added as the deafult value
 	)
 	if err != nil {
 		return -1, err
 	}
 	return res.LastInsertId()
+}
+
+func (s *SqliteDB) SaveTelemetry(te *Telemetry, ti time.Time) (int64, error) {
+	panic("not implemented")
+}
+func (s *SqliteDB) saveMemory(t *Telemetry) (int64, error) {
+	sql := `INSERT INTO tele_mem (
+		client, type, free_mem
+	) VALUES (
+		:CLIENT,:TYPE, :FREE_MEM
+	);`
+
+	stmt, err := s.db.Prepare(sql)
+	if err != nil {
+		return -1, err
+	}
+
+	res, err := stmt.Exec(
+		t.Client,
+		t.Type,
+		t.Data,
+		// NOW is added as the deafult value
+	)
+	if err != nil {
+		return -1, err
+	}
+	return res.LastInsertId()
+
+}
+func (s *SqliteDB) saveVersion(t *Telemetry) (int64, error) {
+	sql := `INSERT INTO tele_ver (
+		client, type, info
+	) VALUES (
+		:CLIENT,:TYPE, :INFO
+	);`
+
+	stmt, err := s.db.Prepare(sql)
+	if err != nil {
+		return -1, err
+	}
+
+	res, err := stmt.Exec(
+		t.Client,
+		t.Type,
+		t.Data,
+		// NOW is added as the default value
+	)
+	if err != nil {
+		return -1, err
+	}
+	return res.LastInsertId()
+
+}
+func (s *SqliteDB) saveMisc(t *Telemetry) (int64, error) {
+	sql := `INSERT INTO tele_misc (
+		client, type, data
+	) VALUES (
+		:CLIENT,:TYPE, :DATA
+	);`
+
+	stmt, err := s.db.Prepare(sql)
+	if err != nil {
+		return -1, err
+	}
+
+	res, err := stmt.Exec(
+		t.Client,
+		t.Type,
+		t.Data,
+		// NOW is added as the default value
+	)
+	if err != nil {
+		return -1, err
+	}
+	return res.LastInsertId()
+
+}
+func (s *SqliteDB) SaveTelemetryNow(t *Telemetry) (int64, error) {
+	if t.IsMemory() {
+		return s.saveMemory(t)
+	} else if t.IsVersion() {
+		return s.saveVersion(t)
+	} else {
+		return s.saveMisc(t)
+		// IsSignalQuality() bool { return t.Type.IsSignalQuality() } ** TODO
+		// IsFlag() bool          { return t.Type.IsFlag() }
+		// IsResetReason() bool   { return t.Type.IsResetReason() }
+		// unknown
+	}
 }
 
 func (s *SqliteDB) Close() {
@@ -103,7 +193,33 @@ func setupDB(db *sql.DB) error {
 		mean         FLOAT,
 		num          INTEGER,
 		ts           INTEGER DEFAULT (STRFTIME('%s','now'))
-	)
+	);
+
+	CREATE TABLE IF NOT EXISTS tele_mem (
+		tele_mem_id INTEGER PRIMARY KEY AUTOINCREMENT,
+		client      VARCHAR,
+		type        VARCHAR,
+		free_mem    INTEGER,
+		ts          INTEGER DEFAULT (STRFTIME('%s','now'))
+
+	);
+
+	CREATE TABLE IF NOT EXISTS tele_ver (
+		tele_ver_id INTEGER PRIMARY KEY AUTOINCREMENT,
+		client      VARCHAR,
+		type        VARCHAR,
+		info        VARCHAR,
+		ts          INTEGER DEFAULT (STRFTIME('%s','now'))
+
+	);
+
+	CREATE TABLE IF NOT EXISTS tele_misc (
+		tele_misc_id INTEGER PRIMARY KEY AUTOINCREMENT,
+		client       VARCHAR,
+		type         VARCHAR,
+		data         VARCHAR,
+		ts           INTEGER DEFAULT (STRFTIME('%s','now'))
+	);
 	`
 	_, err := db.Exec(sql)
 	return err

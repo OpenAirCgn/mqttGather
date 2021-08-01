@@ -1,6 +1,7 @@
 {
 	"sqlite":":memory:",
 	"host":"tcp://test.mosquitto.org:1883",
-	"topic":"/opennoise/#",
+	"topic":"/opennoise/+/dba_stats",
+	"telemetry_topic":"/opennoise/+/telemetry",
 	"client_id":"mqttTest"
 }
