@@ -1,11 +1,14 @@
 package mqttGather
 
+/*
 import (
 	"io"
 	"os"
 	"testing"
 )
+*/
 
+/*
 func TestWeatherDataDownload(t *testing.T) {
 
 	url := "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/10_minutes/air_temperature/recent/10minutenwerte_TU_02667_akt.zip"
@@ -43,3 +46,4 @@ func TestImportPrecipitation(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+*/
