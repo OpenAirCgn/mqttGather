@@ -9,7 +9,8 @@ import (
 )
 
 type SqliteDB struct {
-	db *sql.DB
+	db          *sql.DB
+	deviceCache map[string]int64
 }
 
 func NewDatabase(connectString string) (DB, error) {
@@ -26,28 +27,28 @@ func NewDatabase(connectString string) (DB, error) {
 
 	return &SqliteDB{
 		db,
+		make(map[string]int64),
 	}, nil
 
 }
 
-var deviceCache map[string]int64 = make(map[string]int64)
+// var deviceCache map[string]int64 = make(map[string]int64)
 
 func (s *SqliteDB) lookupDevice(device_mac string) (deviceId int64, err error) {
-	if deviceId, ok := deviceCache[device_mac]; ok {
+	if deviceId, ok := s.deviceCache[device_mac]; ok {
 		return deviceId, nil
 	}
 
 	deviceId, err = s.LoadDeviceId(device_mac)
 
 	if err == nil {
-		deviceCache[device_mac] = deviceId
+		s.deviceCache[device_mac] = deviceId
 		return deviceId, err
 	}
 
 	if err != nil && err != sql.ErrNoRows {
 		return -1, err
 	}
-
 	// an ErrNoRows error indicates we don't have an entry yet.
 	sql := `INSERT INTO device ( device_signifier ) VALUES (:DEVICE);`
 	stmt, err := s.db.Prepare(sql)
@@ -64,7 +65,7 @@ func (s *SqliteDB) lookupDevice(device_mac string) (deviceId int64, err error) {
 	if id, err := res.LastInsertId(); err != nil {
 		return -1, err
 	} else {
-		deviceCache[device_mac] = id
+		s.deviceCache[device_mac] = id
 		return id, nil
 	}
 }
@@ -257,6 +258,53 @@ func (s *SqliteDB) SaveTelemetryNow(t *Telemetry) (int64, error) {
 	}
 }
 
+func (s *SqliteDB) LoadDeviceInfo(signifier string) (*DeviceInfo, error) {
+	sql := `
+SELECT
+	d.device_signifier,
+	description,
+	latitude,
+	longitude,
+	alert_threshold,
+	alert_duration,
+	alert_count,
+	alert_deadtime,
+	alert_phone,
+	alert_active,
+	turn_on_time
+
+FROM
+	device_info di
+JOIN
+	device d
+ON
+	di.device_id = d.device_id
+WHERE
+	device_signifier = :SIGNIFIER
+`
+	stmt, err := s.db.Prepare(sql)
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+	var info DeviceInfo
+
+	err = stmt.QueryRow(signifier).Scan(
+		&info.DeviceSignifier,
+		&info.Description,
+		&info.Latitude,
+		&info.Longitude,
+		&info.AlertThreshold,
+		&info.AlertDuration,
+		&info.AlertCount,
+		&info.AlertDeadtime,
+		&info.AlertPhone,
+		&info.AlertActive,
+		&info.TurnOnTime,
+	)
+	return &info, err
+}
+
 func (s *SqliteDB) Close() {
 	s.db.Close()
 }
@@ -267,6 +315,22 @@ func setupDB(db *sql.DB) error {
 		device_id        INTEGER PRIMARY KEY AUTOINCREMENT,
 		device_signifier VARCHAR UNIQUE -- this is the MAC addr of the openoise device
 	);
+
+	CREATE TABLE IF NOT EXISTS device_info (
+		deviceinfo_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+		device_id       INTEGER NOT NULL UNIQUE REFERENCES device(device_id),
+		description     VARCHAR NOT NULL DEFAULT 'Unbekanntes Geraet', 
+		latitude        FLOAT NOT NULL,                 
+		longitude       FLOAT NOT NULL,                 
+		alert_threshold  FLOAT NOT NULL DEFAULT 100,     
+		alert_duration   FLOAT NOT NULL DEFAULT 60,      
+		alert_count      INTEGER NOT NULL DEFAULT 3,     
+		alert_deadtime   FLOAT NOT NULL DEFAULT 1800,    
+		alert_phone      VARCHAR NOT NULL DEFAULT "",    
+		alert_active     BOOLEAN NOT NULL DEFAULT FALSE, 
+		turn_on_time      INTEGER NOT NULL DEFAULT 0      
+	);
+
 
 	CREATE TABLE IF NOT EXISTS dba_stats (
 		dba_stats_id INTEGER PRIMARY KEY AUTOINCREMENT,

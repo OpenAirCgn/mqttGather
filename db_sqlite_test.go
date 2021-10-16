@@ -47,7 +47,7 @@ func TestDeviceId(t *testing.T) {
 		t.Fatalf("can't happen, sanity check 1. id(%d) err(%v)", id, err)
 	}
 
-	if deviceCache[doesntexist] != 0 {
+	if db.deviceCache[doesntexist] != 0 {
 		t.Fatal("can't happen, sanity check 1")
 	}
 
@@ -56,7 +56,7 @@ func TestDeviceId(t *testing.T) {
 		t.Fatalf("failed to create deviceid: %v", err)
 	}
 
-	if id != deviceCache[doesntexist] || id == 0 {
+	if id != db.deviceCache[doesntexist] || id == 0 {
 		t.Fatalf("something weird: %d", id)
 	}
 
@@ -68,11 +68,47 @@ func TestDeviceId(t *testing.T) {
 	// simulate prexisting device in db
 	// and not yet in cache
 
-	delete(deviceCache, doesntexist)
-
+	delete(db.deviceCache, doesntexist)
 	id, err = db.lookupDevice(doesntexist)
 	if err != nil {
 		t.Fatalf("failed db/notcache lookup: %v", err)
+	}
+
+}
+
+func TestLoadDeviceInfo(t *testing.T) {
+
+	db_, err := NewDatabase(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db_.Close()
+
+	db, _ := db_.(*SqliteDB)
+
+	var doesntexist = "doesntexist"
+	info, err := db.LoadDeviceInfo(doesntexist)
+
+	if err == nil || "sql: no rows in result set" != err.Error() {
+		t.Fatalf("err: %v err:%v", info, err.Error())
+	}
+
+	id, err := db.lookupDevice(doesntexist)
+
+	_, err = db.db.Exec("INSERT INTO device_info (device_id, description, latitude, longitude) VALUES (:ID, 'bla', 1.0, 2.0);", id)
+
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	info, err = db.LoadDeviceInfo(doesntexist)
+
+	if err != nil {
+		t.Fatalf("err: %v err:%v", info, err.Error())
+	}
+
+	if info.Latitude != 1.0 || info.Longitude != 2.0 || info.Description != "bla" {
+		t.Fatalf("Loading Info Failed")
 	}
 
 }
