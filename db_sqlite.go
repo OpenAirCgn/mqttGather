@@ -305,6 +305,44 @@ WHERE
 	return &info, err
 }
 
+func (s *SqliteDB) LoadLastAlert(signifier string) (*Alert, error) {
+	sql := `
+SELECT
+	d.device_signifier,
+	ts,
+	alert_phone,
+	message,
+	status
+FROM
+	alert a
+JOIN
+	device d
+ON
+	d.device_id = a.device_id
+WHERE
+	d.device_signifier = :SIGNIFIER
+ORDER BY
+	ts
+DESC
+LIMIT 1
+`
+	stmt, err := s.db.Prepare(sql)
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+	var alert Alert
+	err = stmt.QueryRow(signifier).Scan(
+		&alert.DeviceSignifier,
+		&alert.Timestamp,
+		&alert.AlertPhone,
+		&alert.Message,
+		&alert.Status,
+	)
+	return &alert, err
+
+}
+
 func (s *SqliteDB) Close() {
 	s.db.Close()
 }
@@ -369,6 +407,17 @@ func setupDB(db *sql.DB) error {
 		data         VARCHAR,
 		ts           INTEGER DEFAULT (STRFTIME('%s','now'))
 	);
+
+	-- log of outgoing alerts
+	CREATE TABLE IF NOT EXISTS alert (
+		alert_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+		device_id   INTEGER REFERENCES device(device_id),
+		ts          INTEGER DEFAULT (STRFTIME('%s','now')),
+		alert_phone  VARCHAR,
+		message     VARCHAR,
+		status      VARCHAR
+	);
+
 	`
 	_, err := db.Exec(sql)
 	return err

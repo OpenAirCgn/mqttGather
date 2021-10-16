@@ -8,5 +8,6 @@ type DB interface {
 	SaveTelemetry(*Telemetry, time.Time) (int64, error)
 	SaveTelemetryNow(*Telemetry) (int64, error)
 	LoadDeviceInfo(string) (*DeviceInfo, error)
+	LoadLastAlert(string) (*Alert, error)
 	Close()
 }
