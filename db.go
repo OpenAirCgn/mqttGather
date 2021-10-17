@@ -9,5 +9,6 @@ type DB interface {
 	SaveTelemetryNow(*Telemetry) (int64, error)
 	LoadDeviceInfo(string) (*DeviceInfo, error)
 	LoadLastAlert(string) (*Alert, error)
+	GetCountThresholdExceeded(string, int64, float64) (int64, error)
 	Close()
 }

@@ -3,6 +3,7 @@ package mqttGather
 import (
 	"database/sql"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 )
@@ -17,7 +18,7 @@ func getTestDB(t *testing.T) *SqliteDB {
 	return db
 }
 
-const TEST_SIGNIFIER = "aa:bb:cc:dd:ee;ff"
+const TEST_SIGNIFIER = "aa:bb:cc:dd:ee:ff"
 
 func getTestDBWithDevice(t *testing.T) (*SqliteDB, int64) {
 	db := getTestDB(t)
@@ -129,4 +130,60 @@ func TestLoadAlert(t *testing.T) {
 	if alert.Timestamp != 2 {
 		t.Fatalf("did not load final alert: %#v", alert)
 	}
+}
+
+func testThresholdExceeded(t *testing.T, db *SqliteDB, windowsSeconds int64, threshold float64, countShould int64) {
+	cnt, err := db.getCountThresholdExceeded(TEST_SIGNIFIER, windowsSeconds, threshold)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	if cnt != countShould { // first entry doesn't exceed
+		t.Fatalf("incorrect count for (w: %v thresh: %v): %v (should: %v)", windowsSeconds, threshold, cnt, countShould)
+	}
+
+}
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+func TestThresholdExceeded(t *testing.T) {
+	db, id := getTestDBWithDevice(t)
+	defer db.Close()
+
+	sql := `
+INSERT INTO dba_stats
+	(device_id, ts, max)
+VALUES
+	(:ID, :TS, :MAX)
+`
+
+	for i := 0; i != 10; i += 1 {
+		_, err := db.db.Exec(sql, id, i, i)
+		if err != nil {
+			t.Fatalf("%v", err)
+		}
+	}
+	var should = [][]int64{
+		{9, 8, 7, 6, 5, 4, 3, 2, 1, 0},
+		{8, 8, 7, 6, 5, 4, 3, 2, 1, 0},
+		{7, 7, 7, 6, 5, 4, 3, 2, 1, 0},
+		{6, 6, 6, 6, 5, 4, 3, 2, 1, 0},
+		{5, 5, 5, 5, 5, 4, 3, 2, 1, 0},
+		{4, 4, 4, 4, 4, 4, 3, 2, 1, 0},
+		{3, 3, 3, 3, 3, 3, 3, 2, 1, 0},
+		{2, 2, 2, 2, 2, 2, 2, 2, 1, 0},
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+	}
+	for window := 0; window <= 9; window = window + 1 {
+		for threshold := 0.0; threshold <= 9.5; threshold += 0.5 {
+			idx2 := int(math.Floor(threshold))
+			shouldCount := should[window][idx2]
+			//fmt.Printf("w:%v t:%v sc: %v %v\n", window, threshold, shouldCount, should[window])
+			testThresholdExceeded(t, db, int64(window), threshold, shouldCount)
+		}
+	}
+
 }

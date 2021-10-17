@@ -343,6 +343,39 @@ LIMIT 1
 
 }
 
+func (s *SqliteDB) GetCountThresholdExceeded(signifier string, seconds int64, threshold float64) (int64, error) {
+	return s.getCountThresholdExceeded(
+		signifier,
+		time.Now().Unix()-seconds,
+		threshold)
+}
+func (s *SqliteDB) getCountThresholdExceeded(signifier string, windowBeginTS int64, threshold float64) (int64, error) {
+	sql := `
+SELECT
+	count(*)
+FROM
+	dba_stats s
+JOIN
+	device d
+ON
+	s.device_id = d.device_id
+WHERE
+	ts > :SECONDS
+AND
+	d.device_signifier = :SIGNIFIER
+AND
+	s.max > :THRESHOLD
+`
+	stmt, err := s.db.Prepare(sql)
+	if err != nil {
+		return -1, err
+	}
+	defer stmt.Close()
+	var count int64
+	err = stmt.QueryRow(windowBeginTS, signifier, threshold).Scan(&count)
+	return count, err
+}
+
 func (s *SqliteDB) Close() {
 	s.db.Close()
 }
