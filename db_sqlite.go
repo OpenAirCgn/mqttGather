@@ -31,17 +31,22 @@ func NewDatabase(connectString string) (DB, error) {
 
 }
 
-type insertExecFunc func(*sql.Stmt) (sql.Result, error)
+type execFunc func(*sql.Stmt) (interface{}, error)
 
-func (s *SqliteDB) insert(sql string, exec insertExecFunc) (int64, error) {
+func (s *SqliteDB) execute(sql string, exec execFunc) (interface{}, error) {
 	stmt, err := s.db.Prepare(sql)
 	if err != nil {
-		return -1, err
+		return nil, err
 	}
 	defer stmt.Close()
 
-	result, err := exec(stmt)
+	return exec(stmt)
+}
 
+func (s *SqliteDB) insert(sqls string, exec execFunc) (int64, error) {
+
+	result_, err := s.execute(sqls, exec)
+	result := result_.(sql.Result)
 	if err != nil {
 		return -1, err
 	}
@@ -52,7 +57,7 @@ func (s *SqliteDB) insert(sql string, exec insertExecFunc) (int64, error) {
 
 func (s *SqliteDB) insertDevice(signifier string) (int64, error) {
 
-	exec := func(stmt *sql.Stmt) (sql.Result, error) {
+	exec := func(stmt *sql.Stmt) (interface{}, error) {
 		return stmt.Exec(
 			signifier,
 		)
@@ -88,16 +93,16 @@ func (s *SqliteDB) lookupDevice(device_mac string) (deviceId int64, err error) {
 }
 
 func (s *SqliteDB) LoadDeviceId(device_signifier string) (int64, error) {
-	sql := "SELECT device_id FROM device WHERE device_signifier = :DEVICE"
-	stmt, err := s.db.Prepare(sql)
-	if err != nil {
-		return -1, err
+	exec := func(stmt *sql.Stmt) (interface{}, error) {
+		var device_id int64
+		err := stmt.QueryRow(device_signifier).Scan(&device_id)
+		return device_id, err
 	}
-	defer stmt.Close()
 
-	var device_id int64
-	err = stmt.QueryRow(device_signifier).Scan(&device_id)
-	return device_id, err
+	sql := "SELECT device_id FROM device WHERE device_signifier = :DEVICE"
+
+	id, err := s.execute(sql, exec)
+	return id.(int64), err
 }
 
 func (s *SqliteDB) Save(stats *DBAStats, t time.Time) (int64, error) {
@@ -106,7 +111,7 @@ func (s *SqliteDB) Save(stats *DBAStats, t time.Time) (int64, error) {
 		return -1, err
 	}
 
-	exec := func(stmt *sql.Stmt) (sql.Result, error) {
+	exec := func(stmt *sql.Stmt) (interface{}, error) {
 		return stmt.Exec(
 			//stats.Client,
 			device_id,
@@ -136,32 +141,26 @@ func (s *SqliteDB) SaveNow(stats *DBAStats) (int64, error) {
 		return -1, err
 	}
 
+	exec := func(stmt *sql.Stmt) (interface{}, error) {
+		return stmt.Exec(
+			device_id,
+			stats.Min,
+			stats.Max,
+			stats.Average,
+			stats.AverageVar,
+			stats.Mean,
+			stats.Num,
+			// NOW is added as the deafult value
+		)
+	}
 	sql := `INSERT INTO dba_stats (
 		device_id, min, max, average, averageVar, mean, num
 	) VALUES (
 		:DEVICE_ID,:MIN,:MAX,:AVG, :AVG_VAR, :MEAN, :NUM
 	);`
 
-	stmt, err := s.db.Prepare(sql)
-	if err != nil {
-		return -1, err
-	}
-	defer stmt.Close()
+	return s.insert(sql, exec)
 
-	res, err := stmt.Exec(
-		device_id,
-		stats.Min,
-		stats.Max,
-		stats.Average,
-		stats.AverageVar,
-		stats.Mean,
-		stats.Num,
-		// NOW is added as the deafult value
-	)
-	if err != nil {
-		return -1, err
-	}
-	return res.LastInsertId()
 }
 
 func (s *SqliteDB) SaveTelemetry(te *Telemetry, ti time.Time) (int64, error) {
@@ -172,34 +171,35 @@ func (s *SqliteDB) saveMemory(t *Telemetry) (int64, error) {
 	if err != nil {
 		return -1, err
 	}
+	exec := func(stmt *sql.Stmt) (interface{}, error) {
+		return stmt.Exec(
+			device_id,
+			t.Type,
+			t.Data,
+			// NOW is added as the deafult value
+		)
+	}
 	sql := `INSERT INTO tele_mem (
 		device_id, type, free_mem
 	) VALUES (
 		:DEVICE_ID,:TYPE, :FREE_MEM
 	);`
 
-	stmt, err := s.db.Prepare(sql)
-	if err != nil {
-		return -1, err
-	}
-	defer stmt.Close()
-
-	res, err := stmt.Exec(
-		device_id,
-		t.Type,
-		t.Data,
-		// NOW is added as the deafult value
-	)
-	if err != nil {
-		return -1, err
-	}
-	return res.LastInsertId()
-
+	return s.insert(sql, exec)
 }
+
 func (s *SqliteDB) saveVersion(t *Telemetry) (int64, error) {
 	device_id, err := s.lookupDevice(t.Client)
 	if err != nil {
 		return -1, err
+	}
+	exec := func(stmt *sql.Stmt) (interface{}, error) {
+		return stmt.Exec(
+			device_id,
+			t.Type,
+			t.Data,
+			// NOW is added as the default value
+		)
 	}
 	sql := `INSERT INTO tele_ver (
 		device_id, type, info
@@ -207,54 +207,33 @@ func (s *SqliteDB) saveVersion(t *Telemetry) (int64, error) {
 		:DEVICE_ID,:TYPE, :INFO
 	);`
 
-	stmt, err := s.db.Prepare(sql)
-	if err != nil {
-		return -1, err
-	}
-	defer stmt.Close()
-
-	res, err := stmt.Exec(
-		device_id,
-		t.Type,
-		t.Data,
-		// NOW is added as the default value
-	)
-	if err != nil {
-		return -1, err
-	}
-	return res.LastInsertId()
-
+	return s.insert(sql, exec)
 }
+
 func (s *SqliteDB) saveMisc(t *Telemetry) (int64, error) {
 	device_id, err := s.lookupDevice(t.Client)
 	if err != nil {
 		return -1, err
 	}
 
+	exec := func(stmt *sql.Stmt) (interface{}, error) {
+		return stmt.Exec(
+			device_id,
+			t.Type,
+			t.Data,
+			// NOW is added as the default value
+		)
+
+	}
 	sql := `INSERT INTO tele_misc (
 		device_id, type, data
 	) VALUES (
 		:DEVICE_ID,:TYPE, :DATA
 	);`
 
-	stmt, err := s.db.Prepare(sql)
-	if err != nil {
-		return -1, err
-	}
-	defer stmt.Close()
-
-	res, err := stmt.Exec(
-		device_id,
-		t.Type,
-		t.Data,
-		// NOW is added as the default value
-	)
-	if err != nil {
-		return -1, err
-	}
-	return res.LastInsertId()
-
+	return s.insert(sql, exec)
 }
+
 func (s *SqliteDB) SaveTelemetryNow(t *Telemetry) (int64, error) {
 	if t.IsMemory() {
 		return s.saveMemory(t)
@@ -270,7 +249,7 @@ func (s *SqliteDB) SaveTelemetryNow(t *Telemetry) (int64, error) {
 }
 
 func (s *SqliteDB) SaveAlert(alert *Alert) (int64, error) {
-	exec := func(stmt *sql.Stmt) (sql.Result, error) {
+	exec := func(stmt *sql.Stmt) (interface{}, error) {
 		return stmt.Exec(
 			alert.DeviceSignifier,
 			alert.Timestamp,
@@ -291,6 +270,25 @@ func (s *SqliteDB) SaveAlert(alert *Alert) (int64, error) {
 }
 
 func (s *SqliteDB) LoadDeviceInfo(signifier string) (*DeviceInfo, error) {
+	exec := func(stmt *sql.Stmt) (interface{}, error) {
+		var info DeviceInfo
+
+		err := stmt.QueryRow(signifier).Scan(
+			&info.DeviceSignifier,
+			&info.Description,
+			&info.Latitude,
+			&info.Longitude,
+			&info.AlertThreshold,
+			&info.AlertDuration,
+			&info.AlertCount,
+			&info.AlertDeadtime,
+			&info.AlertPhone,
+			&info.AlertActive,
+			&info.TurnOnTime,
+		)
+		return &info, err
+	}
+
 	sql := `
 SELECT
 	d.device_signifier,
@@ -314,30 +312,23 @@ ON
 WHERE
 	device_signifier = :SIGNIFIER
 `
-	stmt, err := s.db.Prepare(sql)
-	if err != nil {
-		return nil, err
-	}
-	defer stmt.Close()
-	var info DeviceInfo
-
-	err = stmt.QueryRow(signifier).Scan(
-		&info.DeviceSignifier,
-		&info.Description,
-		&info.Latitude,
-		&info.Longitude,
-		&info.AlertThreshold,
-		&info.AlertDuration,
-		&info.AlertCount,
-		&info.AlertDeadtime,
-		&info.AlertPhone,
-		&info.AlertActive,
-		&info.TurnOnTime,
-	)
-	return &info, err
+	info_, err := s.execute(sql, exec)
+	return info_.(*DeviceInfo), err
 }
 
 func (s *SqliteDB) LoadLastAlert(signifier string) (*Alert, error) {
+	exec := func(stmt *sql.Stmt) (interface{}, error) {
+		var alert Alert
+		err := stmt.QueryRow(signifier).Scan(
+			&alert.DeviceSignifier,
+			&alert.Timestamp,
+			&alert.AlertPhone,
+			&alert.Message,
+			&alert.Status,
+		)
+		return &alert, err
+	}
+
 	sql := `
 SELECT
 	d.device_signifier,
@@ -358,21 +349,8 @@ ORDER BY
 DESC
 LIMIT 1
 `
-	stmt, err := s.db.Prepare(sql)
-	if err != nil {
-		return nil, err
-	}
-	defer stmt.Close()
-	var alert Alert
-	err = stmt.QueryRow(signifier).Scan(
-		&alert.DeviceSignifier,
-		&alert.Timestamp,
-		&alert.AlertPhone,
-		&alert.Message,
-		&alert.Status,
-	)
-	return &alert, err
-
+	alert_, err := s.execute(sql, exec)
+	return alert_.(*Alert), err
 }
 
 func (s *SqliteDB) GetCountThresholdExceeded(signifier string, seconds int64, threshold float64) (int64, error) {
@@ -382,6 +360,11 @@ func (s *SqliteDB) GetCountThresholdExceeded(signifier string, seconds int64, th
 		threshold)
 }
 func (s *SqliteDB) getCountThresholdExceeded(signifier string, windowBeginTS int64, threshold float64) (int64, error) {
+	exec := func(stmt *sql.Stmt) (interface{}, error) {
+		var count int64
+		err := stmt.QueryRow(windowBeginTS, signifier, threshold).Scan(&count)
+		return count, err
+	}
 	sql := `
 SELECT
 	count(*)
@@ -397,16 +380,10 @@ AND
 	d.device_signifier = :SIGNIFIER
 AND
 	s.max > :THRESHOLD
-`
-	stmt, err := s.db.Prepare(sql)
-	if err != nil {
-		println("couldn't prepare")
-		return -1, err
-	}
-	defer stmt.Close()
-	var count int64
-	err = stmt.QueryRow(windowBeginTS, signifier, threshold).Scan(&count)
-	return count, err
+	`
+
+	id_, err := s.execute(sql, exec)
+	return id_.(int64), err
 }
 
 func (s *SqliteDB) Close() {
