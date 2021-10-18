@@ -45,3 +45,17 @@ func TestTelemetryFromPayloadFlag(t *testing.T) {
 	}
 
 }
+
+func TestSaveTelemetry(t *testing.T) {
+	str := "esp:139248"
+	tel, err := TelemetryFromPayload(str, TEST_SIGNIFIER)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, _ := getTestDBWithDevice(t)
+	_, err = db.SaveTelemetryNow(tel)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+}

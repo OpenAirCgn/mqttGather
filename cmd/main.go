@@ -49,8 +49,10 @@ func summary(rc mqttGather.RunConfig, w io.Writer) {
 	}
 }
 
-func startAlert(cfg *mqttGather.RunConfig) {
-
+func startAlert(cfg *mqttGather.RunConfig, mqtt *mqttGather.Mqtt) {
+	done := make(chan bool)
+	alert := mqttGather.NewAlerter(cfg, mqtt, done)
+	alert.Start()
 }
 
 func main() {
@@ -70,7 +72,6 @@ func main() {
 		if rc, err = mqttGather.LoadFromFile(*config); err != nil {
 			panic(err)
 		}
-
 	} else {
 		rc = &mqttGather.RunConfig{}
 	}
@@ -104,16 +105,17 @@ func main() {
 
 	var logWriter io.Writer
 
-	if *logDir != "" {
-		logWriter := &logrotation.Logrotation{
+	if rc.LogDir != "" {
+		logWriter = &logrotation.Logrotation{
 			BaseFilename: "opennoise",
 			Suffix:       "log",
+			BaseDir:      rc.LogDir,
 			Interval:     24 * time.Hour,
 		}
-		log.SetOutput(logWriter)
 	} else {
 		logWriter = os.Stdout
 	}
+	log.SetOutput(logWriter)
 
 	summary(*rc, logWriter)
 
@@ -127,7 +129,7 @@ func main() {
 	// start alerting
 
 	if rc.SMSKey != "" {
-		startAlert(rc)
+		startAlert(rc, mqtt)
 	}
 
 	<-keepAlive

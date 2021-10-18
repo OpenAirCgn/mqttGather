@@ -55,6 +55,7 @@ func (m *Mqtt) msgHandler(c MQTT.Client, msg MQTT.Message) {
 				log.Printf("E: could not reconnect to db (%v)", err)
 			}
 		}
+		m.statsChannel <- *stats
 	}
 
 }

@@ -63,10 +63,11 @@ func (s *SqliteDB) execute(sql string, exec execFunc) (interface{}, error) {
 // an automated primary key which is retrieved via Result.LastInsertId()
 func (s *SqliteDB) insert(sqls string, exec execFunc) (int64, error) {
 	result_, err := s.execute(sqls, exec)
-	result := result_.(sql.Result)
+
 	if err != nil {
 		return -1, err
 	}
+	result := result_.(sql.Result)
 
 	return result.LastInsertId()
 }
@@ -219,7 +220,7 @@ func (s *SqliteDB) saveMemory(t *Telemetry, ti time.Time) (int64, error) {
 	sql := `INSERT INTO tele_mem (
 		device_id, type, free_mem, ts
 	) VALUES (
-		:DEVICE_ID,:TYPE, :FREE_MEM, TS
+		:DEVICE_ID,:TYPE, :FREE_MEM, :TS
 	);`
 
 	return s.insert(sql, exec)

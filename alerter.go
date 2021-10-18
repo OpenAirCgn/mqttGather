@@ -35,21 +35,22 @@ func NewAlerter(cfg *RunConfig, mqtt *Mqtt, done chan<- bool) *Alerter {
 func (a *Alerter) Start() {
 
 	go func() {
+		i := 0
 		for stats := range a.StatsChannel {
-
 			cfg, err := a.DB.LoadDeviceInfo(stats.Signifier)
 
 			if err != nil {
-				// TODO die here?
-				log.Printf("E: could not load configuration for device: %s (%v)", stats.Signifier, err)
+				if i%30 == 0 {
+					log.Printf("E: could not load configuration for device: %s (%v)", stats.Signifier, err)
+				}
+				i += 1
 				continue
 			}
 
-			// TODO check no alert has been send in DeadTime
 			if stats.Max < cfg.AlertThreshold {
 				continue
 			}
-
+			// TODO check alerts activated ...
 			lastAlert, err := a.DB.LoadLastAlert(stats.Signifier)
 
 			if lastAlert.Timestamp+cfg.AlertDeadtime > time.Now().Unix() {
@@ -62,13 +63,11 @@ func (a *Alerter) Start() {
 				continue
 			}
 
+			log.Printf("D: %d threshold violations in %d for %s", cnt, cfg.AlertDuration, stats.Signifier)
+
 			if cnt >= cfg.AlertCount {
-				device, err := a.DB.LoadDeviceInfo(stats.Signifier)
-				if err != nil {
-					log.Printf("Could not load Device Info for (%s): %v", stats.Signifier, err)
-					continue
-				}
-				msg := fmt.Sprintf("Lautstaerkeueberschreitung an Strassenmusik-Messgeraet %s", device.Description)
+				log.Printf("D: %d threshold violations, sending SMS to %s", cnt, cfg.AlertPhone)
+				msg := fmt.Sprintf("Lautstaerkeueberschreitung an Strassenmusik-Messgeraet %s", cfg.Description)
 
 				// no need to handle error, sendAlert either takes down system
 				// or logs failure. There's nothing more we can do at the moment.
