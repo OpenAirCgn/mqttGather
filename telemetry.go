@@ -7,6 +7,12 @@ import (
 	"strings"
 )
 
+// Open Noise devices currently (2021-10-18) provide some rudimentary telemetry data via MQTT.
+// Due to IOT bandwidth contraints the data provided is limited. Format of the data is described:
+// https://github.com/OpenAirCgn/openair-firmware-espidf/blob/feature-telemetry/notes/feature-telemetry.md
+//
+// This file contains functionality to parse MQTT Telemetry packets.
+
 // TODO should prbly include date here and in dbaStats ...
 type Telemetry struct {
 	Client string
@@ -29,7 +35,6 @@ const (
 	ESQ = Type("esq")
 )
 
-// see https://github.com/OpenAirCgn/openair-firmware-espidf/blob/feature-telemetry/notes/feature-telemetry.md
 func (t Type) String() string {
 	switch t {
 	case "esp":
