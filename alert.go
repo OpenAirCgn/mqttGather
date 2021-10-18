@@ -47,15 +47,15 @@ type SMS struct {
 }
 
 func normalizePhone(phoneNr string) (string, error) {
-	if strings.HasPrefix(phoneNr, "01") {
+	switch {
+	case strings.HasPrefix(phoneNr, "01"):
 		phoneNr = "0049" + phoneNr[1:]
-	} else if strings.HasPrefix(phoneNr, "+49") {
+	case strings.HasPrefix(phoneNr, "+49"):
 		phoneNr = "00" + phoneNr[1:]
-	} else if !strings.HasPrefix(phoneNr, "0049") {
+	case !strings.HasPrefix(phoneNr, "0049"):
 		return "", fmt.Errorf("unknown phone nr format: %v", phoneNr)
 	}
 	return phoneNr, nil
-
 }
 
 // Send a notification and stores in `Alert` table

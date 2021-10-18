@@ -188,11 +188,10 @@ VALUES
 		{1, 1, 1, 1, 1, 1, 1, 1, 1, 0},
 		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 	}
-	for window := 0; window <= 9; window = window + 1 {
+	for window := 0; window <= 9; window++ {
 		for threshold := 0.0; threshold <= 9.5; threshold += 0.5 {
 			idx2 := int(math.Floor(threshold))
 			shouldCount := should[window][idx2]
-			//fmt.Printf("w:%v t:%v sc: %v %v\n", window, threshold, shouldCount, should[window])
 			testThresholdExceeded(t, db, int64(window), threshold, shouldCount)
 		}
 	}

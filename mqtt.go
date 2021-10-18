@@ -38,7 +38,6 @@ func retrieveClientId(topic string) string {
 	return topic[11 : 11+17]
 }
 func (m *Mqtt) msgHandler(c MQTT.Client, msg MQTT.Message) {
-	//fmt.Fprintf(os.Stdout, "%#v : %s -> %s\n", c, msg.Topic(), string(msg.Payload()))
 
 	// /opennoise/c4:dd:57:66:95:60/dba_stats
 	producer := retrieveClientId(msg.Topic())
@@ -61,7 +60,6 @@ func (m *Mqtt) msgHandler(c MQTT.Client, msg MQTT.Message) {
 }
 
 func (m *Mqtt) msgHandlerTelemetry(c MQTT.Client, msg MQTT.Message) {
-	//fmt.Fprintf(os.Stdout, "%#v : %s -> %s\n", c, msg.Topic(), string(msg.Payload()))
 
 	// /opennoise/c4:dd:57:66:95:60/telemetry
 	producer := retrieveClientId(msg.Topic())

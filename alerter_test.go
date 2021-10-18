@@ -1,6 +1,9 @@
 package mqttGather
 
 import (
+	"bytes"
+	"log"
+	"os"
 	"testing"
 	"time"
 )
@@ -23,6 +26,12 @@ func TestAlerter(t *testing.T) {
 	db, _ := getTestDBWithDeviceInfo(t)
 	defer db.Close()
 
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer func() {
+		log.SetOutput(os.Stderr)
+	}()
+
 	var m_is, s_is string
 	notifier := notifyFunc(func(msg, signifier, phone string) error {
 		m_is = msg
@@ -42,7 +51,7 @@ func TestAlerter(t *testing.T) {
 	alerter.Start()
 
 	// insert 5 Stats below threshold
-	for i := 0; i != 5; i = i + 1 {
+	for i := 0; i != 5; i++ {
 		s := DBAStats{
 			Signifier: TEST_SIGNIFIER,
 			Max:       1.5,
@@ -57,7 +66,7 @@ func TestAlerter(t *testing.T) {
 		t.Fatalf("received unwarranted alert: %s %s", m_is, s_is)
 	}
 	// insert 2 stats above threshold
-	for i := 5; i != 7; i = i + 1 {
+	for i := 5; i != 7; i++ {
 		s := DBAStats{
 			Signifier: TEST_SIGNIFIER,
 			Max:       102.0,

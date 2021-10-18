@@ -135,7 +135,6 @@ func (s *SqliteDB) Save(stats *DBAStats, t time.Time) (int64, error) {
 
 	exec := func(stmt *sql.Stmt) (interface{}, error) {
 		return stmt.Exec(
-			//stats.Client,
 			device_id,
 			stats.Min,
 			stats.Max,
@@ -192,11 +191,12 @@ func (s *SqliteDB) SaveTelemetryNow(t *Telemetry) (int64, error) {
 	return s.SaveTelemetry(t, time.Now())
 }
 func (s *SqliteDB) SaveTelemetry(t *Telemetry, ti time.Time) (int64, error) {
-	if t.IsMemory() {
+	switch {
+	case t.IsMemory():
 		return s.saveMemory(t, ti)
-	} else if t.IsVersion() {
+	case t.IsVersion():
 		return s.saveVersion(t, ti)
-	} else {
+	default:
 		return s.saveMisc(t, ti)
 		// IsSignalQuality() bool { return t.Type.IsSignalQuality() } ** TODO
 		// IsFlag() bool          { return t.Type.IsFlag() }
@@ -204,6 +204,7 @@ func (s *SqliteDB) SaveTelemetry(t *Telemetry, ti time.Time) (int64, error) {
 		// unknown
 	}
 }
+
 func (s *SqliteDB) saveMemory(t *Telemetry, ti time.Time) (int64, error) {
 	device_id, err := s.lookupDevice(t.Client)
 	if err != nil {
