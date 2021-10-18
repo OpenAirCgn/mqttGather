@@ -7,16 +7,16 @@ import (
 )
 
 type DBAStats struct {
-	Client     string
-	Min        float32
-	Max        float32
-	Average    float32
-	AverageVar float32
-	Mean       float32
+	Signifier  string
+	Min        float64
+	Max        float64
+	Average    float64
+	AverageVar float64
+	Mean       float64
 	Num        int
 }
 
-func DBAStatsFromString(csv string, client string) (*DBAStats, error) {
+func DBAStatsFromString(csv string, signifier string) (*DBAStats, error) {
 	vals := strings.Split(csv, ",")
 	if len(vals) != 6 {
 		return nil, fmt.Errorf("invalid DBAStats string: %s", csv)
@@ -26,27 +26,27 @@ func DBAStatsFromString(csv string, client string) (*DBAStats, error) {
 	if f, err := strconv.ParseFloat(vals[0], 32); err != nil {
 		return nil, err
 	} else {
-		stats.Min = float32(f)
+		stats.Min = float64(f)
 	}
 	if f, err := strconv.ParseFloat(vals[1], 32); err != nil {
 		return nil, err
 	} else {
-		stats.Max = float32(f)
+		stats.Max = float64(f)
 	}
 	if f, err := strconv.ParseFloat(vals[2], 32); err != nil {
 		return nil, err
 	} else {
-		stats.Average = float32(f)
+		stats.Average = float64(f)
 	}
 	if f, err := strconv.ParseFloat(vals[3], 32); err != nil {
 		return nil, err
 	} else {
-		stats.AverageVar = float32(f)
+		stats.AverageVar = float64(f)
 	}
 	if f, err := strconv.ParseFloat(vals[4], 32); err != nil {
 		return nil, err
 	} else {
-		stats.Mean = float32(f)
+		stats.Mean = float64(f)
 	}
 	if n, err := strconv.Atoi(vals[5]); err != nil {
 		return nil, err
@@ -54,7 +54,7 @@ func DBAStatsFromString(csv string, client string) (*DBAStats, error) {
 		stats.Num = n
 	}
 
-	stats.Client = client
+	stats.Signifier = signifier
 	return &stats, nil
 }
 

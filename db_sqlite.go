@@ -2,10 +2,9 @@ package mqttGather
 
 import (
 	"database/sql"
+	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"time"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
 type SqliteDB struct {
@@ -51,7 +50,16 @@ func (s *SqliteDB) insert(sql string, exec insertExecFunc) (int64, error) {
 
 }
 
-// var deviceCache map[string]int64 = make(map[string]int64)
+func (s *SqliteDB) insertDevice(signifier string) (int64, error) {
+
+	exec := func(stmt *sql.Stmt) (sql.Result, error) {
+		return stmt.Exec(
+			signifier,
+		)
+	}
+	sql := `INSERT INTO device ( device_signifier ) VALUES (:DEVICE);`
+	return s.insert(sql, exec)
+}
 
 func (s *SqliteDB) lookupDevice(device_mac string) (deviceId int64, err error) {
 	if deviceId, ok := s.deviceCache[device_mac]; ok {
@@ -69,19 +77,9 @@ func (s *SqliteDB) lookupDevice(device_mac string) (deviceId int64, err error) {
 		return -1, err
 	}
 	// an ErrNoRows error indicates we don't have an entry yet.
-	sql := `INSERT INTO device ( device_signifier ) VALUES (:DEVICE);`
-	stmt, err := s.db.Prepare(sql)
-	if err != nil {
-		return -1, err
-	}
-	defer stmt.Close()
+	// create one and add to cache.
 
-	res, err := stmt.Exec(device_mac)
-	if err != nil {
-		return -1, err
-	}
-
-	if id, err := res.LastInsertId(); err != nil {
+	if id, err := s.insertDevice(device_mac); err != nil {
 		return -1, err
 	} else {
 		s.deviceCache[device_mac] = id
@@ -103,7 +101,7 @@ func (s *SqliteDB) LoadDeviceId(device_signifier string) (int64, error) {
 }
 
 func (s *SqliteDB) Save(stats *DBAStats, t time.Time) (int64, error) {
-	device_id, err := s.lookupDevice(stats.Client)
+	device_id, err := s.lookupDevice(stats.Signifier)
 	if err != nil {
 		return -1, err
 	}
@@ -133,7 +131,7 @@ func (s *SqliteDB) Save(stats *DBAStats, t time.Time) (int64, error) {
 }
 
 func (s *SqliteDB) SaveNow(stats *DBAStats) (int64, error) {
-	device_id, err := s.lookupDevice(stats.Client)
+	device_id, err := s.lookupDevice(stats.Signifier)
 	if err != nil {
 		return -1, err
 	}
@@ -402,6 +400,7 @@ AND
 `
 	stmt, err := s.db.Prepare(sql)
 	if err != nil {
+		println("couldn't prepare")
 		return -1, err
 	}
 	defer stmt.Close()

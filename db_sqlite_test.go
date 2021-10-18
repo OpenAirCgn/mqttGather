@@ -9,12 +9,14 @@ import (
 )
 
 func getTestDB(t *testing.T) *SqliteDB {
-	db_, err := NewDatabase(":memory:")
+	db_, err := NewDatabase("file::memory:?cache=private")
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	db, _ := db_.(*SqliteDB)
+	db.db.SetMaxOpenConns(1) // <- this is necessary to avoid some extremly tedious racy conditions
+	// which may or may not be a driver bug for in-memory dbs during testing.
+
 	return db
 }
 
@@ -23,6 +25,15 @@ const TEST_SIGNIFIER = "aa:bb:cc:dd:ee:ff"
 func getTestDBWithDevice(t *testing.T) (*SqliteDB, int64) {
 	db := getTestDB(t)
 	id, _ := db.lookupDevice(TEST_SIGNIFIER)
+	return db, id
+}
+
+func getTestDBWithDeviceInfo(t *testing.T) (*SqliteDB, int64) {
+	db, id := getTestDBWithDevice(t)
+	_, err := db.db.Exec("INSERT INTO device_info (device_id, description, latitude, longitude) VALUES (:ID, 'bla', 1.0, 2.0);", id)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return db, id
 }
 

@@ -27,7 +27,7 @@ type Alert struct {
 }
 
 type Notifier interface {
-	SendAlert(msg string) error
+	SendAlert(msg, signifier string) error
 }
 
 type SMS struct {
@@ -48,6 +48,7 @@ func NewSMS(phoneNr string, key string, db DB) (*SMS, error) {
 		phoneNr, key, db,
 	}, nil
 }
+
 func (s *SMS) SendAlert(msg, signifier string) error {
 	msgEncoded := url.QueryEscape(msg)
 	tmpl := "https://www.smsflatrate.net/schnittstelle.php?key=%s&from=opennoise&to=%s&text=%s&type=10"
@@ -76,5 +77,4 @@ func (s *SMS) SendAlert(msg, signifier string) error {
 	}
 
 	return err
-
 }
