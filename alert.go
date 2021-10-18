@@ -35,7 +35,7 @@ type Alert struct {
 // Generic Notifier, currently implemented for SMS and used to mock
 // notification for testing (see: alerter_test.go)
 type Notifier interface {
-	SendAlert(msg, signifier string) error
+	SendAlert(msg, signifier string) (*Alert, error)
 }
 
 // Configuration information for SMS notifier:
@@ -63,7 +63,9 @@ func NewSMS(phoneNr string, key string, db DB) (*SMS, error) {
 }
 
 // Send a notification and stores in `Alert` table
-func (s *SMS) SendAlert(msg, signifier string) error {
+// It's the callers responsibility to keep track of sent alerts, these need
+// to be persisted using DB.SaveAlert
+func (s *SMS) SendAlert(msg, signifier string) (*Alert, error) {
 	msgEncoded := url.QueryEscape(msg)
 	tmpl := "https://www.smsflatrate.net/schnittstelle.php?key=%s&from=opennoise&to=%s&text=%s&type=10"
 	target := fmt.Sprintf(tmpl, s.Key, s.Phone, msgEncoded)
@@ -77,18 +79,11 @@ func (s *SMS) SendAlert(msg, signifier string) error {
 	} else {
 		status = resp.Status
 	}
-	alert := Alert{
+	return &Alert{
 		signifier,
 		time.Now().Unix(),
 		s.Phone,
 		msg,
 		status,
-	}
-
-	_, err2 := s.DB.SaveAlert(&alert)
-	if err2 != nil {
-		log.Fatalf("Could not save alert: %v", err2)
-	}
-
-	return err
+	}, err
 }

@@ -30,7 +30,12 @@ func getTestDBWithDevice(t *testing.T) (*SqliteDB, int64) {
 
 func getTestDBWithDeviceInfo(t *testing.T) (*SqliteDB, int64) {
 	db, id := getTestDBWithDevice(t)
-	_, err := db.db.Exec("INSERT INTO device_info (device_id, description, latitude, longitude) VALUES (:ID, 'bla', 1.0, 2.0);", id)
+	_, err := db.db.Exec(`INSERT INTO 
+				device_info (
+					device_id, description, latitude, longitude
+				) VALUES (
+					:ID, 'bla', 1.0, 2.0);`, id)
+
 	if err != nil {
 		t.Fatal(err)
 	}

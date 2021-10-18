@@ -2,13 +2,21 @@ package mqttGather
 
 import (
 	"testing"
+	"time"
 )
 
 // SMS Mock.
 type notifyFunc func(msg, signifier string) error
 
-func (n notifyFunc) SendAlert(msg, signifier string) error {
-	return n(msg, signifier)
+func (n notifyFunc) SendAlert(msg, signifier string) (*Alert, error) {
+	err := n(msg, signifier)
+	return &Alert{
+		signifier,
+		time.Now().Unix(),
+		"123",
+		msg,
+		"ok",
+	}, err
 }
 
 func TestAlerter(t *testing.T) {
@@ -27,9 +35,6 @@ func TestAlerter(t *testing.T) {
 	alerter := Alerter{
 		DB:           db,
 		Notifier:     notifier,
-		Threshold:    2.0,
-		DelayMS:      10000,
-		Count:        5,
 		StatsChannel: channel,
 		Done:         done,
 	}
@@ -51,11 +56,11 @@ func TestAlerter(t *testing.T) {
 	if m_is != "" || s_is != "" {
 		t.Fatalf("received unwarranted alert: %s %s", m_is, s_is)
 	}
-	// insert 4 stats above threshold
-	for i := 5; i != 9; i = i + 1 {
+	// insert 2 stats above threshold
+	for i := 5; i != 7; i = i + 1 {
 		s := DBAStats{
 			Signifier: TEST_SIGNIFIER,
-			Max:       2.5,
+			Max:       102.0,
 		}
 		db.SaveNow(&s)
 		channel <- s
@@ -67,14 +72,25 @@ func TestAlerter(t *testing.T) {
 	// insert on more, check woohoo!
 	s := DBAStats{
 		Signifier: TEST_SIGNIFIER,
-		Max:       2.5,
+		Max:       102.5,
 	}
 	db.SaveNow(&s)
 	channel <- s
-	close(channel)
-	<-done
+
 	if m_is != "Lautstaerkeueberschreitung an Strassenmusik-Messgeraet bla" || s_is != TEST_SIGNIFIER {
 		t.Fatalf("no notification! >%v< >%v<", m_is, s_is == TEST_SIGNIFIER)
 	}
+
+	m_is = "nothing"
+
+	db.SaveNow(&s)
+	channel <- s
+
+	if m_is != "nothing" {
+		t.Fatalf("received unwarranted alert (3:deadtime) %s", m_is)
+	}
+
+	close(channel)
+	<-done
 
 }

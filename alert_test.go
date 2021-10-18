@@ -20,22 +20,13 @@ func TestSendAlert(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 	msg := fmt.Sprintf("Test SMS: %s", time.Now().String())
-	if err := sms.SendAlert(msg, TEST_SIGNIFIER); err != nil {
+	alert, err := sms.SendAlert(msg, TEST_SIGNIFIER)
+	if err != nil {
 		t.Fatalf("Failed to send sms: %v", err)
 	}
-
-	alert, err := db.LoadLastAlert(TEST_SIGNIFIER)
-
-	if err != nil {
-		t.Fatalf("failed to load: %v", err)
-	}
-	if alert.DeviceSignifier != TEST_SIGNIFIER {
-		t.Fatalf("0 is: %s, should %s", alert.DeviceSignifier, TEST_SIGNIFIER)
+	// to honor deadtime, alert would need to be saved!
+	if alert.AlertPhone != "+491791001709" {
+		t.Fatalf("alert info transfered incorrectly: %#v", alert)
 	}
 
-	if alert.Message != msg {
-		t.Fatalf("1 is: %s, should %s", alert.Message, msg)
-	}
-
-	// t.Fatalf("%#v", alert)
 }

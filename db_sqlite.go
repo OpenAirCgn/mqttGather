@@ -2,9 +2,11 @@ package mqttGather
 
 import (
 	"database/sql"
-	_ "github.com/mattn/go-sqlite3"
+	"fmt"
 	"log"
 	"time"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type SqliteDB struct {
@@ -413,6 +415,9 @@ AND
 	`
 
 	id_, err := s.execute(sql, exec)
+	if err != nil {
+		fmt.Printf("%v", err)
+	}
 	return id_.(int64), err
 }
 
