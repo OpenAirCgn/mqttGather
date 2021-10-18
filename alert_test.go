@@ -15,12 +15,9 @@ func TestSendAlert(t *testing.T) {
 	db, _ := getTestDBWithDevice(t)
 	defer db.Close()
 
-	sms, err := NewSMS("01791001709", key, db)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
+	sms := SMS{key}
 	msg := fmt.Sprintf("Test SMS: %s", time.Now().String())
-	alert, err := sms.SendAlert(msg, TEST_SIGNIFIER)
+	alert, err := sms.SendAlert(msg, TEST_SIGNIFIER, "01791001709")
 	if err != nil {
 		t.Fatalf("Failed to send sms: %v", err)
 	}

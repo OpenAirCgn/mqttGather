@@ -23,6 +23,15 @@ type Alerter struct {
 	Done         chan<- bool
 }
 
+func NewAlerter(cfg *RunConfig, mqtt *Mqtt, done chan<- bool) *Alerter {
+	return &Alerter{
+		mqtt.db.(*SqliteDB),
+		&SMS{cfg.SMSKey},
+		mqtt.statsChannel,
+		done,
+	}
+}
+
 func (a *Alerter) Start() {
 
 	go func() {
@@ -63,7 +72,7 @@ func (a *Alerter) Start() {
 
 				// no need to handle error, sendAlert either takes down system
 				// or logs failure. There's nothing more we can do at the moment.
-				alert, err := a.Notifier.SendAlert(msg, stats.Signifier)
+				alert, err := a.Notifier.SendAlert(msg, stats.Signifier, cfg.AlertPhone)
 
 				if _, err = a.DB.SaveAlert(alert); err != nil {
 					log.Printf("E: could no save alert: %#v (%v)", alert, err)

@@ -35,7 +35,7 @@ type Alert struct {
 // Generic Notifier, currently implemented for SMS and used to mock
 // notification for testing (see: alerter_test.go)
 type Notifier interface {
-	SendAlert(msg, signifier string) (*Alert, error)
+	SendAlert(msg, signifier, phone string) (*Alert, error)
 }
 
 // Configuration information for SMS notifier:
@@ -43,32 +43,32 @@ type Notifier interface {
 // `Key`   : API key
 // `DB`    : database to log alerts to
 type SMS struct {
-	Phone string
-	Key   string
-	DB    DB
+	Key string
 }
 
-// Creates a SMS object, checking target phoe for plausibility
-func NewSMS(phoneNr string, key string, db DB) (*SMS, error) {
+func normalizePhone(phoneNr string) (string, error) {
 	if strings.HasPrefix(phoneNr, "01") {
 		phoneNr = "0049" + phoneNr[1:]
 	} else if strings.HasPrefix(phoneNr, "+49") {
 		phoneNr = "00" + phoneNr[1:]
 	} else if !strings.HasPrefix(phoneNr, "0049") {
-		return nil, fmt.Errorf("unknown phone nr format: %v", phoneNr)
+		return "", fmt.Errorf("unknown phone nr format: %v", phoneNr)
 	}
-	return &SMS{
-		phoneNr, key, db,
-	}, nil
+	return phoneNr, nil
+
 }
 
 // Send a notification and stores in `Alert` table
 // It's the callers responsibility to keep track of sent alerts, these need
 // to be persisted using DB.SaveAlert
-func (s *SMS) SendAlert(msg, signifier string) (*Alert, error) {
+func (s *SMS) SendAlert(msg, signifier, phone string) (*Alert, error) {
+	phone, err := normalizePhone(phone)
+	if err != nil {
+		return nil, err
+	}
 	msgEncoded := url.QueryEscape(msg)
 	tmpl := "https://www.smsflatrate.net/schnittstelle.php?key=%s&from=opennoise&to=%s&text=%s&type=10"
-	target := fmt.Sprintf(tmpl, s.Key, s.Phone, msgEncoded)
+	target := fmt.Sprintf(tmpl, s.Key, phone, msgEncoded)
 
 	resp, err := http.Get(target)
 
@@ -82,7 +82,7 @@ func (s *SMS) SendAlert(msg, signifier string) (*Alert, error) {
 	return &Alert{
 		signifier,
 		time.Now().Unix(),
-		s.Phone,
+		phone,
 		msg,
 		status,
 	}, err

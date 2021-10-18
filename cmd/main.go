@@ -23,7 +23,8 @@ var (
 	clientId       = flag.String("clientID", "", "clientId to use for connection")
 	silent         = flag.Bool("silent", false, "psssh!")
 	config         = flag.String("c", "", "name of (optional) config file")
-	logDir         = flag.String("logDir", "", "where to write logs, writes to stdout if not set")
+	logDir         = flag.String("log-dir", "", "where to write logs, writes to stdout if not set")
+	smsKey         = flag.String("sms-key", "", "api key for SMS")
 	_version       = flag.Bool("version", false, "display version information and exit")
 )
 
@@ -36,9 +37,20 @@ func summary(rc mqttGather.RunConfig, w io.Writer) {
 	fmt.Fprintf(w, "subscribing to: %s\n", rc.Topic)
 	fmt.Fprintf(w, "host          : %s\n", rc.Host)
 	fmt.Fprintf(w, "clientId      : %s\n", rc.ClientId)
+	fmt.Fprintf(w, "logDir        : %s\n", rc.LogDir)
+	if rc.SMSKey != "" {
+		fmt.Fprintf(w, "smsKey        : %s\n", "***")
+	} else {
+		fmt.Fprintf(w, "smsKey        : %s\n", "not set!")
+	}
+
 	if *config != "" {
 		fmt.Fprintf(w, "config file   : %s\n", *config)
 	}
+}
+
+func startAlert(cfg *mqttGather.RunConfig) {
+
 }
 
 func main() {
@@ -50,19 +62,6 @@ func main() {
 	if *_version {
 		banner(os.Stderr)
 		os.Exit(0)
-	}
-
-	var logWriter io.Writer
-
-	if *logDir != "" {
-		logWriter := &logrotation.Logrotation{
-			BaseFilename: "opennoise",
-			Suffix:       "log",
-			Interval:     24 * time.Hour,
-		}
-		log.SetOutput(logWriter)
-	} else {
-		logWriter = os.Stdout
 	}
 
 	var rc *mqttGather.RunConfig
@@ -95,14 +94,41 @@ func main() {
 		summary(*rc, os.Stderr)
 	}
 
+	if *logDir != "" {
+		rc.LogDir = *logDir
+	}
+
+	if *smsKey != "" {
+		rc.SMSKey = *smsKey
+	}
+
+	var logWriter io.Writer
+
+	if *logDir != "" {
+		logWriter := &logrotation.Logrotation{
+			BaseFilename: "opennoise",
+			Suffix:       "log",
+			Interval:     24 * time.Hour,
+		}
+		log.SetOutput(logWriter)
+	} else {
+		logWriter = os.Stdout
+	}
+
 	summary(*rc, logWriter)
 
+	// Start Collecting
 	mqtt, err := mqttGather.NewMQTT(rc)
-
 	if err != nil {
 		panic(err)
 	}
 	defer mqtt.Disconnect()
+
+	// start alerting
+
+	if rc.SMSKey != "" {
+		startAlert(rc)
+	}
 
 	<-keepAlive
 }

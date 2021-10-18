@@ -6,14 +6,14 @@ import (
 )
 
 // SMS Mock.
-type notifyFunc func(msg, signifier string) error
+type notifyFunc func(msg, signifier, phone string) error
 
-func (n notifyFunc) SendAlert(msg, signifier string) (*Alert, error) {
-	err := n(msg, signifier)
+func (n notifyFunc) SendAlert(msg, signifier, phone string) (*Alert, error) {
+	err := n(msg, signifier, phone)
 	return &Alert{
 		signifier,
 		time.Now().Unix(),
-		"123",
+		phone,
 		msg,
 		"ok",
 	}, err
@@ -24,7 +24,7 @@ func TestAlerter(t *testing.T) {
 	defer db.Close()
 
 	var m_is, s_is string
-	notifier := notifyFunc(func(msg, signifier string) error {
+	notifier := notifyFunc(func(msg, signifier, phone string) error {
 		m_is = msg
 		s_is = signifier
 		return nil

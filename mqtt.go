@@ -16,14 +16,16 @@ type Mqtt struct {
 	TelemetryTopic string
 	ClientId       string
 
-	cfg    *RunConfig
-	db     DB
-	client MQTT.Client
+	cfg          *RunConfig
+	db           DB
+	client       MQTT.Client
+	statsChannel chan DBAStats
 }
 
 func (m *Mqtt) Disconnect() error {
 	m.db.Close()
 	m.client.Disconnect(1000)
+	close(m.statsChannel)
 	return nil
 }
 func retrieveClientId(topic string) string {
@@ -107,6 +109,8 @@ func NewMQTT(cfg *RunConfig) (*Mqtt, error) {
 		log.Printf("E: could not connect to DB: %v", err)
 		return nil, err
 	}
+
+	mqtt.statsChannel = make(chan DBAStats)
 
 	opts := MQTT.NewClientOptions()
 	opts.AddBroker(mqtt.Broker)
