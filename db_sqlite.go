@@ -32,6 +32,25 @@ func NewDatabase(connectString string) (DB, error) {
 
 }
 
+type insertExecFunc func(*sql.Stmt) (sql.Result, error)
+
+func (s *SqliteDB) insert(sql string, exec insertExecFunc) (int64, error) {
+	stmt, err := s.db.Prepare(sql)
+	if err != nil {
+		return -1, err
+	}
+	defer stmt.Close()
+
+	result, err := exec(stmt)
+
+	if err != nil {
+		return -1, err
+	}
+
+	return result.LastInsertId()
+
+}
+
 // var deviceCache map[string]int64 = make(map[string]int64)
 
 func (s *SqliteDB) lookupDevice(device_mac string) (deviceId int64, err error) {
@@ -89,33 +108,27 @@ func (s *SqliteDB) Save(stats *DBAStats, t time.Time) (int64, error) {
 		return -1, err
 	}
 
+	exec := func(stmt *sql.Stmt) (sql.Result, error) {
+		return stmt.Exec(
+			//stats.Client,
+			device_id,
+			stats.Min,
+			stats.Max,
+			stats.Average,
+			stats.AverageVar,
+			stats.Mean,
+			stats.Num,
+			t.Unix(),
+		)
+	}
+
 	sql := `INSERT INTO dba_stats (
 		device_id, min, max, average, averageVar, mean, num, ts
 	) VALUES (
 		:DEVICE_ID,:MIN,:MAX,:AVG, :AVG_VAR, :MEAN, :NUM, :TS
 	);`
 
-	stmt, err := s.db.Prepare(sql)
-	if err != nil {
-		return -1, err
-	}
-	defer stmt.Close()
-
-	res, err := stmt.Exec(
-		//stats.Client,
-		device_id,
-		stats.Min,
-		stats.Max,
-		stats.Average,
-		stats.AverageVar,
-		stats.Mean,
-		stats.Num,
-		t.Unix(),
-	)
-	if err != nil {
-		return -1, err
-	}
-	return res.LastInsertId()
+	return s.insert(sql, exec)
 
 }
 
@@ -256,6 +269,27 @@ func (s *SqliteDB) SaveTelemetryNow(t *Telemetry) (int64, error) {
 		// IsResetReason() bool   { return t.Type.IsResetReason() }
 		// unknown
 	}
+}
+
+func (s *SqliteDB) SaveAlert(alert *Alert) (int64, error) {
+	exec := func(stmt *sql.Stmt) (sql.Result, error) {
+		return stmt.Exec(
+			alert.DeviceSignifier,
+			alert.Timestamp,
+			alert.Message,
+			alert.Status,
+		)
+	}
+	sql := `INSERT INTO alert
+			(device_id, alert_phone, message, status)
+		VALUES
+			( (SELECT DISTINCT device_id FROM device WHERE device_signifier = :SIGNIFIER),
+			  :PHONE,
+			  :MESSAGE,
+			  :STATUS
+			)
+		`
+	return s.insert(sql, exec)
 }
 
 func (s *SqliteDB) LoadDeviceInfo(signifier string) (*DeviceInfo, error) {

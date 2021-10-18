@@ -142,12 +142,7 @@ func testThresholdExceeded(t *testing.T, db *SqliteDB, windowsSeconds int64, thr
 	}
 
 }
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
+
 func TestThresholdExceeded(t *testing.T) {
 	db, id := getTestDBWithDevice(t)
 	defer db.Close()
@@ -184,6 +179,34 @@ VALUES
 			//fmt.Printf("w:%v t:%v sc: %v %v\n", window, threshold, shouldCount, should[window])
 			testThresholdExceeded(t, db, int64(window), threshold, shouldCount)
 		}
+	}
+
+}
+
+func TestSaveAlert(t *testing.T) {
+	msg := "TestMsg"
+	alert := &Alert{
+		TEST_SIGNIFIER,
+		0,
+		"123",
+		msg,
+		"ok",
+	}
+
+	db, _ := getTestDBWithDevice(t)
+	db.SaveAlert(alert)
+
+	alert, err := db.LoadLastAlert(TEST_SIGNIFIER)
+
+	if err != nil {
+		t.Fatalf("failed to load: %v", err)
+	}
+	if alert.DeviceSignifier != TEST_SIGNIFIER {
+		t.Fatalf("0 is: %s, should %s", alert.DeviceSignifier, TEST_SIGNIFIER)
+	}
+
+	if alert.Message != msg {
+		t.Fatalf("1 is: %s, should %s", alert.Message, msg)
 	}
 
 }

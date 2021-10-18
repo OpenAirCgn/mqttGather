@@ -3,10 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/a2800276/logrotation"
 	"github.com/openaircgn/mqttGather"
 )
 
@@ -19,24 +23,24 @@ var (
 	clientId       = flag.String("clientID", "", "clientId to use for connection")
 	silent         = flag.Bool("silent", false, "psssh!")
 	config         = flag.String("c", "", "name of (optional) config file")
+	logDir         = flag.String("logDir", "", "where to write logs, writes to stdout if not set")
 	_version       = flag.Bool("version", false, "display version information and exit")
 )
 
-func banner() {
-	fmt.Fprintf(os.Stderr, "%s ver %s\n", os.Args[0], version)
+func banner(w io.Writer) {
+	fmt.Fprintf(w, "%s ver %s\n", os.Args[0], version)
 }
-func summary(rc mqttGather.RunConfig) {
-	banner()
-	fmt.Fprintf(os.Stderr, "sqlite connect: %s\n", rc.SqlLiteConnect)
-	fmt.Fprintf(os.Stderr, "subscribing to: %s\n", rc.Topic)
-	fmt.Fprintf(os.Stderr, "host          : %s\n", rc.Host)
-	fmt.Fprintf(os.Stderr, "clientId      : %s\n", rc.ClientId)
+func summary(rc mqttGather.RunConfig, w io.Writer) {
+	banner(w)
+	fmt.Fprintf(w, "sqlite connect: %s\n", rc.SqlLiteConnect)
+	fmt.Fprintf(w, "subscribing to: %s\n", rc.Topic)
+	fmt.Fprintf(w, "host          : %s\n", rc.Host)
+	fmt.Fprintf(w, "clientId      : %s\n", rc.ClientId)
 	if *config != "" {
-		fmt.Fprintf(os.Stderr, "config file   : %s\n", *config)
-
+		fmt.Fprintf(w, "config file   : %s\n", *config)
 	}
-
 }
+
 func main() {
 	keepAlive := make(chan os.Signal)
 	signal.Notify(keepAlive, os.Interrupt, syscall.SIGTERM)
@@ -44,8 +48,21 @@ func main() {
 	flag.Parse()
 
 	if *_version {
-		banner()
+		banner(os.Stderr)
 		os.Exit(0)
+	}
+
+	var logWriter io.Writer
+
+	if *logDir != "" {
+		logWriter := &logrotation.Logrotation{
+			BaseFilename: "opennoise",
+			Suffix:       "log",
+			Interval:     24 * time.Hour,
+		}
+		log.SetOutput(logWriter)
+	} else {
+		logWriter = os.Stdout
 	}
 
 	var rc *mqttGather.RunConfig
@@ -75,8 +92,10 @@ func main() {
 	}
 
 	if !*silent {
-		summary(*rc)
+		summary(*rc, os.Stderr)
 	}
+
+	summary(*rc, logWriter)
 
 	mqtt, err := mqttGather.NewMQTT(rc)
 

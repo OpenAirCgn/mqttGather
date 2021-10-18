@@ -3,3 +3,4 @@ prod.sqlite3
 release/
 opennoise.sqlite3
 *.sqlite3
+testsms.sh
