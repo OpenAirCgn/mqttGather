@@ -143,7 +143,7 @@ func NewMQTT(cfg *RunConfig) (*Mqtt, error) {
 		// Telemetry Topic
 		token = mqtt.client.Subscribe(mqtt.TelemetryTopic, byte(0), mqtt.msgHandlerTelemetry)
 		if token.Wait() && token.Error() != nil {
-			log.Printf("E: subscribtion failed: %s (%v)", mqtt.TelemetryTopic, token.Error())
+			log.Printf("E: subscription failed: %s (%v)", mqtt.TelemetryTopic, token.Error())
 		} else {
 			log.Printf("D: subscribed to: %s", mqtt.TelemetryTopic)
 		}
