@@ -4,13 +4,14 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	//	"log"
 	"os"
 	"os/signal"
 	"syscall"
-	//	"time"
 
-	//	"github.com/a2800276/logrotation"
+	"github.com/a2800276/logrotation"
+	"log"
+	"time"
+
 	"github.com/openaircgn/mqttGather"
 )
 
@@ -51,7 +52,6 @@ func summary(rc mqttGather.RunConfig, w io.Writer) {
 func startAlert(cfg *mqttGather.RunConfig, mqtt *mqttGather.Mqtt) {
 	done := make(chan bool)
 	alert := mqttGather.NewAlerter(cfg, mqtt, done)
-	println("here statrting alerter")
 	alert.Start()
 }
 
@@ -99,21 +99,21 @@ func main() {
 		rc.SMSKey = *smsKey
 	}
 
-	//	var logWriter io.Writer
-	//
-	//	if rc.LogDir != "" {
-	//		logWriter = &logrotation.Logrotation{
-	//			BaseFilename: "opennoise",
-	//			Suffix:       "log",
-	//			BaseDir:      rc.LogDir,
-	//			Interval:     24 * time.Hour,
-	//		}
-	//	} else {
-	//		logWriter = os.Stdout
-	//	}
-	//	log.SetOutput(logWriter)
-	//
-	//	summary(*rc, logWriter)
+	var logWriter io.Writer
+
+	if rc.LogDir != "" {
+		logWriter = &logrotation.Logrotation{
+			BaseFilename: "opennoise",
+			Suffix:       "log",
+			BaseDir:      rc.LogDir,
+			Interval:     24 * time.Hour,
+		}
+	} else {
+		logWriter = os.Stdout
+	}
+	log.SetOutput(logWriter)
+
+	summary(*rc, logWriter)
 
 	// Start Collecting
 	mqtt, err := mqttGather.NewMQTT(rc)
