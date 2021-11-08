@@ -62,17 +62,23 @@ func normalizePhone(phoneNr string) (string, error) {
 // It's the callers responsibility to keep track of sent alerts, these need
 // to be persisted using DB.SaveAlert
 func (s *SMS) SendAlert(msg, signifier, phone string) (*Alert, error) {
-	phone, err := normalizePhone(phone)
-	if err != nil {
-		return nil, err
-	}
-	msgEncoded := url.QueryEscape(msg)
-	tmpl := "https://www.smsflatrate.net/schnittstelle.php?key=%s&from=opennoise&to=%s&text=%s&type=10"
-	target := fmt.Sprintf(tmpl, s.Key, phone, msgEncoded)
-
-	resp, err := http.Get(target)
-
+	var err error
 	var status string
+	var resp *http.Response
+	if s.Key != "" {
+		phone, err := normalizePhone(phone)
+		if err != nil {
+			return nil, err
+		}
+		msgEncoded := url.QueryEscape(msg)
+		tmpl := "https://www.smsflatrate.net/schnittstelle.php?key=%s&from=opennoise&to=%s&text=%s&type=10"
+		target := fmt.Sprintf(tmpl, s.Key, phone, msgEncoded)
+
+		resp, err = http.Get(target)
+	} else {
+		log.Printf("not sending alert, no SMS key set.")
+		status = "not sent, no sms key"
+	}
 	if err != nil {
 		status = err.Error()
 		log.Printf("could not send alert: %v", err)

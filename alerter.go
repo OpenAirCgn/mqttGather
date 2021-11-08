@@ -36,6 +36,7 @@ func (a *Alerter) Start() {
 
 	go func() {
 		i := 0
+		log.Printf("started alerter.")
 		for stats := range a.StatsChannel {
 			cfg, err := a.DB.LoadDeviceInfo(stats.Signifier)
 

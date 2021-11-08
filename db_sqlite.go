@@ -2,7 +2,6 @@ package mqttGather
 
 import (
 	"database/sql"
-	"fmt"
 	"log"
 	"time"
 
@@ -391,7 +390,7 @@ func (s *SqliteDB) GetCountThresholdExceeded(signifier string, seconds int64, th
 		threshold)
 }
 
-// Retrieve the numnber of times the 'threshold' was exceeded by device `signifier` since the timestamp `windowBginTS`.
+// Retrieve the number of times the 'threshold' was exceeded by device `signifier` since the timestamp `windowBginTS`.
 // This (redundant) function exists primarily to facilitate testing.
 func (s *SqliteDB) getCountThresholdExceeded(signifier string, windowBeginTS int64, threshold float64) (int64, error) {
 	exec := func(stmt *sql.Stmt) (interface{}, error) {
@@ -418,7 +417,7 @@ AND
 
 	id_, err := s.execute(sql, exec)
 	if err != nil {
-		fmt.Printf("%v", err)
+		log.Printf("%v", err)
 	}
 	return id_.(int64), err
 }

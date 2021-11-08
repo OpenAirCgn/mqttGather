@@ -4,13 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
+	//	"log"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
+	//	"time"
 
-	"github.com/a2800276/logrotation"
+	//	"github.com/a2800276/logrotation"
 	"github.com/openaircgn/mqttGather"
 )
 
@@ -21,7 +21,6 @@ var (
 	telemetryTopic = flag.String("telemetry-topic", "", "topic to subscribe to for telemetry data")
 	host           = flag.String("host", "", "host to connect to")
 	clientId       = flag.String("clientID", "", "clientId to use for connection")
-	silent         = flag.Bool("silent", false, "psssh!")
 	config         = flag.String("c", "", "name of (optional) config file")
 	logDir         = flag.String("log-dir", "", "where to write logs, writes to stdout if not set")
 	smsKey         = flag.String("sms-key", "", "api key for SMS")
@@ -52,6 +51,7 @@ func summary(rc mqttGather.RunConfig, w io.Writer) {
 func startAlert(cfg *mqttGather.RunConfig, mqtt *mqttGather.Mqtt) {
 	done := make(chan bool)
 	alert := mqttGather.NewAlerter(cfg, mqtt, done)
+	println("here statrting alerter")
 	alert.Start()
 }
 
@@ -91,10 +91,6 @@ func main() {
 		rc.ClientId = *clientId
 	}
 
-	if !*silent {
-		summary(*rc, os.Stderr)
-	}
-
 	if *logDir != "" {
 		rc.LogDir = *logDir
 	}
@@ -103,21 +99,21 @@ func main() {
 		rc.SMSKey = *smsKey
 	}
 
-	var logWriter io.Writer
-
-	if rc.LogDir != "" {
-		logWriter = &logrotation.Logrotation{
-			BaseFilename: "opennoise",
-			Suffix:       "log",
-			BaseDir:      rc.LogDir,
-			Interval:     24 * time.Hour,
-		}
-	} else {
-		logWriter = os.Stdout
-	}
-	log.SetOutput(logWriter)
-
-	summary(*rc, logWriter)
+	//	var logWriter io.Writer
+	//
+	//	if rc.LogDir != "" {
+	//		logWriter = &logrotation.Logrotation{
+	//			BaseFilename: "opennoise",
+	//			Suffix:       "log",
+	//			BaseDir:      rc.LogDir,
+	//			Interval:     24 * time.Hour,
+	//		}
+	//	} else {
+	//		logWriter = os.Stdout
+	//	}
+	//	log.SetOutput(logWriter)
+	//
+	//	summary(*rc, logWriter)
 
 	// Start Collecting
 	mqtt, err := mqttGather.NewMQTT(rc)
@@ -126,11 +122,8 @@ func main() {
 	}
 	defer mqtt.Disconnect()
 
-	// start alerting
+	//start alerting
 
-	if rc.SMSKey != "" {
-		startAlert(rc, mqtt)
-	}
-
+	startAlert(rc, mqtt)
 	<-keepAlive
 }
