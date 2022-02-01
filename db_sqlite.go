@@ -88,6 +88,9 @@ func (s *SqliteDB) LoadDeviceId(device_signifier string) (int64, error) {
 	sql := "SELECT device_id FROM device WHERE device_signifier = :DEVICE"
 
 	id, err := s.execute(sql, exec)
+	if err != nil {
+		return -1, err
+	}
 	return id.(int64), err
 }
 func (s *SqliteDB) lookupDevice(device_mac string) (deviceId int64, err error) {
@@ -340,6 +343,9 @@ WHERE
 	device_signifier = :SIGNIFIER
 `
 	info_, err := s.execute(sql, exec)
+	if err != nil {
+		return nil, err
+	}
 	return info_.(*DeviceInfo), err
 }
 
@@ -349,7 +355,7 @@ WHERE
 func (s *SqliteDB) LoadLastAlert(signifier string) (*Alert, error) {
 	exec := func(stmt *sql.Stmt) (interface{}, error) {
 		var alert Alert
-		err := stmt.QueryRow(signifier).Scan(
+		err := stmt.QueryRow(signifier, signifier).Scan(
 			&alert.DeviceSignifier,
 			&alert.Timestamp,
 			&alert.AlertPhone,
@@ -374,12 +380,24 @@ ON
 	d.device_id = a.device_id
 WHERE
 	d.device_signifier = :SIGNIFIER
+UNION -- return a default if no device_info exists
+SELECT
+	:SIGNIFIER2,
+	0,
+	0,
+	'<DEFAULT>',
+	''
 ORDER BY
 	ts
 DESC
 LIMIT 1
 `
+
+	//println(sql)
 	alert_, err := s.execute(sql, exec)
+	if err != nil {
+		return nil, err
+	}
 	return alert_.(*Alert), err
 }
 
@@ -419,6 +437,7 @@ AND
 	id_, err := s.execute(sql, exec)
 	if err != nil {
 		fmt.Printf("%v", err)
+		return -1, err
 	}
 	return id_.(int64), err
 }
