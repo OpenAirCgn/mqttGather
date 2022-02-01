@@ -4,9 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/a2800276/logrotation"
 	"log"
@@ -91,6 +93,10 @@ func main() {
 		rc.ClientId = *clientId
 	}
 
+	if !*silent {
+		summary(*rc, os.Stderr)
+	}
+
 	if *logDir != "" {
 		rc.LogDir = *logDir
 	}
@@ -122,8 +128,11 @@ func main() {
 	}
 	defer mqtt.Disconnect()
 
-	//start alerting
+	// start alerting
 
-	startAlert(rc, mqtt)
+	if rc.SMSKey != "" {
+		startAlert(rc, mqtt)
+	}
+
 	<-keepAlive
 }

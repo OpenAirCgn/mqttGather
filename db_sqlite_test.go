@@ -71,7 +71,7 @@ func TestDeviceId(t *testing.T) {
 	var doesntexist = "doesntexist"
 
 	id, err := db.LoadDeviceId(doesntexist)
-	if id != 0 || err != sql.ErrNoRows {
+	if id != -1 || err != sql.ErrNoRows {
 		t.Fatalf("can't happen, sanity check 1. id(%d) err(%v)", id, err)
 	}
 
@@ -108,13 +108,22 @@ func TestLoadDeviceInfo(t *testing.T) {
 	db, id := getTestDBWithDevice(t)
 	defer db.Close()
 
-	_, err := db.db.Exec("INSERT INTO device_info (device_id, description, latitude, longitude) VALUES (:ID, 'bla', 1.0, 2.0);", id)
+	info, err := db.LoadDeviceInfo(TEST_SIGNIFIER)
+
+	if info != nil {
+		t.Fatalf("loaded nonexisting device info: %v", info)
+	}
+	if err == nil {
+		t.Fatalf("expected err!")
+	}
+
+	_, err = db.db.Exec("INSERT INTO device_info (device_id, description, latitude, longitude) VALUES (:ID, 'bla', 1.0, 2.0);", id)
 
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
 
-	info, err := db.LoadDeviceInfo(TEST_SIGNIFIER)
+	info, err = db.LoadDeviceInfo(TEST_SIGNIFIER)
 
 	if err != nil {
 		t.Fatalf("err: %v err:%v", info, err.Error())
@@ -126,10 +135,18 @@ func TestLoadDeviceInfo(t *testing.T) {
 
 }
 
+func TestLoadDeviceInfoFail(t *testing.T) {}
+
 func TestLoadAlert(t *testing.T) {
 
 	db, id := getTestDBWithDevice(t)
 	defer db.Close()
+
+	alert, err := db.LoadLastAlert(TEST_SIGNIFIER)
+
+	if err != nil || alert.Timestamp != 0 {
+		t.Fatalf("loaded non existant alert (err=%v): %#v", err, alert)
+	}
 
 	for i := 0; i != 3; i += 1 {
 		_, err := db.db.Exec("INSERT INTO alert (device_id, ts, alert_phone, message, status) VALUES (:ID, :ts, '123', 'MSG', 'ok' )", id, fmt.Sprintf("%d", i))
@@ -139,7 +156,7 @@ func TestLoadAlert(t *testing.T) {
 		}
 	}
 
-	alert, err := db.LoadLastAlert(TEST_SIGNIFIER)
+	alert, err = db.LoadLastAlert(TEST_SIGNIFIER)
 	if err != nil {
 		t.Fatalf("could not load last alert: %v", err)
 	}

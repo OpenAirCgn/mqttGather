@@ -87,6 +87,9 @@ func (s *SqliteDB) LoadDeviceId(device_signifier string) (int64, error) {
 	sql := "SELECT device_id FROM device WHERE device_signifier = :DEVICE"
 
 	id, err := s.execute(sql, exec)
+	if err != nil {
+		return -1, err
+	}
 	return id.(int64), err
 }
 func (s *SqliteDB) lookupDevice(device_mac string) (deviceId int64, err error) {
@@ -339,6 +342,9 @@ WHERE
 	device_signifier = :SIGNIFIER
 `
 	info_, err := s.execute(sql, exec)
+	if err != nil {
+		return nil, err
+	}
 	return info_.(*DeviceInfo), err
 }
 
@@ -348,7 +354,7 @@ WHERE
 func (s *SqliteDB) LoadLastAlert(signifier string) (*Alert, error) {
 	exec := func(stmt *sql.Stmt) (interface{}, error) {
 		var alert Alert
-		err := stmt.QueryRow(signifier).Scan(
+		err := stmt.QueryRow(signifier, signifier).Scan(
 			&alert.DeviceSignifier,
 			&alert.Timestamp,
 			&alert.AlertPhone,
@@ -373,12 +379,24 @@ ON
 	d.device_id = a.device_id
 WHERE
 	d.device_signifier = :SIGNIFIER
+UNION -- return a default if no device_info exists
+SELECT
+	:SIGNIFIER2,
+	0,
+	0,
+	'<DEFAULT>',
+	''
 ORDER BY
 	ts
 DESC
 LIMIT 1
 `
+
+	//println(sql)
 	alert_, err := s.execute(sql, exec)
+	if err != nil {
+		return nil, err
+	}
 	return alert_.(*Alert), err
 }
 
@@ -438,16 +456,16 @@ func setupDB(db *sql.DB) error {
 	CREATE TABLE IF NOT EXISTS device_info (
 		deviceinfo_id   INTEGER PRIMARY KEY AUTOINCREMENT,
 		device_id       INTEGER NOT NULL UNIQUE REFERENCES device(device_id),
-		description     VARCHAR NOT NULL DEFAULT 'Unbekanntes Geraet', 
-		latitude        FLOAT NOT NULL,                 
-		longitude       FLOAT NOT NULL,                 
-		alert_threshold  FLOAT NOT NULL DEFAULT 100,     
-		alert_duration   FLOAT NOT NULL DEFAULT 60,      
-		alert_count      INTEGER NOT NULL DEFAULT 3,     
-		alert_deadtime   FLOAT NOT NULL DEFAULT 1800,    
-		alert_phone      VARCHAR NOT NULL DEFAULT "",    
-		alert_active     BOOLEAN NOT NULL DEFAULT FALSE, 
-		turn_on_time      INTEGER NOT NULL DEFAULT 0      
+		description     VARCHAR NOT NULL DEFAULT 'Unbekanntes Geraet',
+		latitude        FLOAT NOT NULL,
+		longitude       FLOAT NOT NULL,
+		alert_threshold  FLOAT NOT NULL DEFAULT 100,
+		alert_duration   FLOAT NOT NULL DEFAULT 60,
+		alert_count      INTEGER NOT NULL DEFAULT 3,
+		alert_deadtime   FLOAT NOT NULL DEFAULT 1800,
+		alert_phone      VARCHAR NOT NULL DEFAULT "",
+		alert_active     BOOLEAN NOT NULL DEFAULT FALSE,
+		turn_on_time      INTEGER NOT NULL DEFAULT 0
 	);
 
 
