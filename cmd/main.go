@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"github.com/a2800276/logrotation"
-	"log"
-	"time"
 
 	"github.com/openaircgn/mqttGather"
 )
@@ -24,6 +22,7 @@ var (
 	telemetryTopic = flag.String("telemetry-topic", "", "topic to subscribe to for telemetry data")
 	host           = flag.String("host", "", "host to connect to")
 	clientId       = flag.String("clientID", "", "clientId to use for connection")
+	silent         = flag.Bool("silent", false, "psssh!")
 	config         = flag.String("c", "", "name of (optional) config file")
 	logDir         = flag.String("log-dir", "", "where to write logs, writes to stdout if not set")
 	smsKey         = flag.String("sms-key", "", "api key for SMS")
