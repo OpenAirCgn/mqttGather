@@ -35,7 +35,7 @@ type Observation struct {
 }
 
 // https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/10_minutes/air_temperature/recent/10minutenwerte_TU_02667_akt.zip
-//STATIONS_ID;MESS_DATUM;  QN;PP_10;TT_10;TM5_10;RF_10;TD_10;eor
+// STATIONS_ID;MESS_DATUM;  QN;PP_10;TT_10;TM5_10;RF_10;TD_10;eor
 //        617;201911290000;    3;   -999;   7.4;   6.6;  89.5;   5.8;eor
 // PP_10 Luftdruck -- apparently always inalid for 10 minute readings
 // TT_10 Lufttemperatur in 2m Hoehe

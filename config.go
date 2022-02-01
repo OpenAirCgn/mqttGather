@@ -12,6 +12,8 @@ type RunConfig struct {
 	Topic          string `json:"topic"`
 	TelemetryTopic string `json:"telemetry_topic"`
 	ClientId       string `json:"client_id"`
+	LogDir         string `json:"log_dir"`
+	SMSKey         string `json:"sms_key"`
 }
 
 func Load(reader io.Reader) (*RunConfig, error) {

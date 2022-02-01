@@ -16,14 +16,16 @@ type Mqtt struct {
 	TelemetryTopic string
 	ClientId       string
 
-	cfg    *RunConfig
-	db     DB
-	client MQTT.Client
+	cfg          *RunConfig
+	db           DB
+	client       MQTT.Client
+	statsChannel chan DBAStats
 }
 
 func (m *Mqtt) Disconnect() error {
 	m.db.Close()
 	m.client.Disconnect(1000)
+	close(m.statsChannel)
 	return nil
 }
 func retrieveClientId(topic string) string {
@@ -36,7 +38,6 @@ func retrieveClientId(topic string) string {
 	return topic[11 : 11+17]
 }
 func (m *Mqtt) msgHandler(c MQTT.Client, msg MQTT.Message) {
-	//fmt.Fprintf(os.Stdout, "%#v : %s -> %s\n", c, msg.Topic(), string(msg.Payload()))
 
 	// /opennoise/c4:dd:57:66:95:60/dba_stats
 	producer := retrieveClientId(msg.Topic())
@@ -53,12 +54,12 @@ func (m *Mqtt) msgHandler(c MQTT.Client, msg MQTT.Message) {
 				log.Printf("E: could not reconnect to db (%v)", err)
 			}
 		}
+		m.statsChannel <- *stats
 	}
 
 }
 
 func (m *Mqtt) msgHandlerTelemetry(c MQTT.Client, msg MQTT.Message) {
-	//fmt.Fprintf(os.Stdout, "%#v : %s -> %s\n", c, msg.Topic(), string(msg.Payload()))
 
 	// /opennoise/c4:dd:57:66:95:60/telemetry
 	producer := retrieveClientId(msg.Topic())
@@ -107,6 +108,8 @@ func NewMQTT(cfg *RunConfig) (*Mqtt, error) {
 		log.Printf("E: could not connect to DB: %v", err)
 		return nil, err
 	}
+
+	mqtt.statsChannel = make(chan DBAStats)
 
 	opts := MQTT.NewClientOptions()
 	opts.AddBroker(mqtt.Broker)

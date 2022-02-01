@@ -64,13 +64,17 @@ to contain version and plattform information:
 Compiled release binaries may also be downloaded from the Github [release
 page](https://github.com/OpenAirCgn/mqttGather/releases)
 
+## Testing
+
+During tests, SMS alerts are typically NOT sent to avoid being annoying.
+You can set an environment variable named SMSKEY to actually send an SMS.
+
 
 ## TODOS
 - telemetry: handle flag and ESQ values
 - db : denormalize client and migrate
 - IN PROGRESS Weather Data Import: https://www.dwd.de/DE/leistungen/klimadatendeutschland/klimadatendeutschland.html
 - -silent should suppress logging
-- logging to file / DB with rotation
 - TLS
 - different backends
 - different plugins/topics to gather other sensor data
