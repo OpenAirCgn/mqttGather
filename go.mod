@@ -1,4 +1,4 @@
-module github.com/openaircgn/mqttGather
+module github.com/presseverykey/opennoise_daemon
 
 go 1.16
 

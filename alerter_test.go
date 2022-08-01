@@ -1,4 +1,4 @@
-package mqttGather
+package opennoise_daemon
 
 import (
 	"bytes"

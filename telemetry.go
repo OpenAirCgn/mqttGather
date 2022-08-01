@@ -1,4 +1,4 @@
-package mqttGather
+package opennoise_daemon
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ import (
 
 // TODO should prbly include date here and in dbaStats ...
 type Telemetry struct {
-	Client string
+	DeviceSignifier string
 	Type   Type
 	Data   interface{}
 }
@@ -114,7 +114,7 @@ func parseTelemetryData(t Type, data string) interface{} {
 	}
 }
 
-func TelemetryFromPayload(payload string, client string) (*Telemetry, error) {
+func TelemetryFromPayload(payload string, signifier string) (*Telemetry, error) {
 	vals := strings.SplitN(payload, ":", 2)
 	if len(vals) != 2 {
 		return nil, fmt.Errorf("invalid telemetry: %s", payload)
@@ -124,7 +124,7 @@ func TelemetryFromPayload(payload string, client string) (*Telemetry, error) {
 	data := parseTelemetryData(tipe, vals[1])
 
 	tel := Telemetry{
-		Client: client,
+		DeviceSignifier: signifier,
 		Type:   Type(vals[0]),
 		Data:   data,
 	}

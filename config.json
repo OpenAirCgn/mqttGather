@@ -1,0 +1,7 @@
+{
+	"sqlite":"db.sqlite",
+	"mqtt_host":"tcp://test.mosquitto.org:1883",
+  "mqtt_client_id":"mqttTest123"
+	"mqtt_noise_topic":"/opennoise/+/dba_stats",
+	"mqtt_telemetry_topic":"/opennoise/+/telemetry",
+}

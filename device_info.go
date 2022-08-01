@@ -1,4 +1,4 @@
-package mqttGather
+package opennoise_daemon
 
 type DeviceInfo struct {
 	DeviceSignifier string
@@ -11,5 +11,5 @@ type DeviceInfo struct {
 	AlertDeadtime   int64
 	AlertPhone      string
 	AlertActive     bool
-	TurnOnTime      int
+	TurnOnTime      int64
 }

@@ -1,4 +1,7 @@
-package mqttGather
+package opennoise_daemon
+
+// MQTT connection handler. Connects to MQTT, 
+// subscribes to given topics, responds to messages
 
 import (
 	"crypto/tls"
@@ -11,23 +14,61 @@ import (
 )
 
 type Mqtt struct {
-	Broker         string
-	Topic          string
-	TelemetryTopic string
-	ClientId       string
-
 	cfg          *RunConfig
-	db           DB
 	client       MQTT.Client
-	statsChannel chan DBAStats
+	observerList []DeviceObserver
+
+}
+
+func (m *Mqtt) Register(o DeviceObserver) {
+	m.observerList = append(m.observerList, o);
+}
+
+func (m *Mqtt) Unregister(o DeviceObserver) {
+	var newObserverList []DeviceObserver	
+	for _, observer := range m.observerList {
+		if observer != o {
+			newObserverList = append(m.observerList, observer)
+		}
+	}
+	m.observerList = newObserverList
+}
+
+func (m *Mqtt) noiseMsgHandler(c MQTT.Client, msg MQTT.Message) {
+	// /opennoise/c4:dd:57:66:95:60/dba_stats
+	producer := retrieveClientId(msg.Topic())
+	payload := string(msg.Payload())
+	stats, err := DBAStatsFromString(payload, producer)
+	if err != nil {
+		log.Printf("E: Could not parse %s : %v", payload, err)
+	} else {
+		log.Printf("D: recv %s : %s", msg.Topic(), payload)
+		for _, observer := range m.observerList {
+      observer.SensorDBAStats(stats)
+    }
+	}
+}
+
+func (m *Mqtt) telemetryMsgHandler(c MQTT.Client, msg MQTT.Message) {
+	// /opennoise/c4:dd:57:66:95:60/telemetry
+	producer := retrieveClientId(msg.Topic())
+	payload := string(msg.Payload())
+	telemetry, err := TelemetryFromPayload(payload, producer)
+	if err != nil {
+		log.Printf("E: Could not parse %s : %v", payload, err)
+	} else {
+		log.Printf("D: recv %s : %s", msg.Topic(), payload)
+		for _, observer := range m.observerList {
+      observer.SensorTelemetry(telemetry)
+    }
+	}
 }
 
 func (m *Mqtt) Disconnect() error {
-	m.db.Close()
 	m.client.Disconnect(1000)
-	close(m.statsChannel)
 	return nil
 }
+
 func retrieveClientId(topic string) string {
 	// /opennoise/c4:dd:57:66:95:60/dba_stats
 	// producer := msg.Topic()[11 : 11+17]
@@ -37,83 +78,15 @@ func retrieveClientId(topic string) string {
 	}
 	return topic[11 : 11+17]
 }
-func (m *Mqtt) msgHandler(c MQTT.Client, msg MQTT.Message) {
-
-	// /opennoise/c4:dd:57:66:95:60/dba_stats
-	producer := retrieveClientId(msg.Topic())
-
-	csv := string(msg.Payload())
-	stats, err := DBAStatsFromString(csv, producer)
-	if err != nil {
-		log.Printf("E: could not parse %s : %v", csv, err)
-	} else {
-		log.Printf("D: recv %s : %s", msg.Topic(), csv)
-		if _, err := m.db.SaveNow(stats); err != nil {
-			log.Printf("E: could not save %s (raw:%s) : %v", stats, csv, err)
-			if err := m.connectDB(); err != nil {
-				log.Printf("E: could not reconnect to db (%v)", err)
-			}
-		}
-		m.statsChannel <- *stats
-	}
-
-}
-
-func (m *Mqtt) msgHandlerTelemetry(c MQTT.Client, msg MQTT.Message) {
-
-	// /opennoise/c4:dd:57:66:95:60/telemetry
-	producer := retrieveClientId(msg.Topic())
-
-	payload := string(msg.Payload())
-	telemetry, err := TelemetryFromPayload(payload, producer)
-	if err != nil {
-		log.Printf("E: could not parse %s : %v", payload, err)
-	} else {
-		log.Printf("D: recv %s : %s", msg.Topic(), payload)
-		if _, err := m.db.SaveTelemetryNow(telemetry); err != nil {
-			log.Printf("E: could not save %s (raw:%s) : %v", telemetry, payload, err)
-			if err := m.connectDB(); err != nil {
-				log.Printf("E: could not reconnect to db (%v)", err)
-			}
-		}
-	}
-
-}
-
-func (m *Mqtt) connectDB() error {
-	if m.db != nil {
-		log.Printf("D: closing existing connection")
-		m.db.Close()
-	}
-
-	if db, err := NewDatabase(m.cfg.SqlLiteConnect); err != nil {
-		return err
-	} else {
-		m.db = db
-	}
-	return nil
-}
 
 func NewMQTT(cfg *RunConfig) (*Mqtt, error) {
-	mqtt := Mqtt{
-		Broker:         cfg.Host,
-		Topic:          cfg.Topic,
-		TelemetryTopic: cfg.TelemetryTopic,
-		ClientId:       cfg.ClientId,
-
+	mqtt := Mqtt {
 		cfg: cfg,
 	}
 
-	if err := mqtt.connectDB(); err != nil {
-		log.Printf("E: could not connect to DB: %v", err)
-		return nil, err
-	}
-
-	mqtt.statsChannel = make(chan DBAStats)
-
 	opts := MQTT.NewClientOptions()
-	opts.AddBroker(mqtt.Broker)
-	opts.SetClientID(mqtt.ClientId)
+	opts.AddBroker(cfg.MqttHost)
+	opts.SetClientID(cfg.MqttClientId)
 
 	opts.SetConnectRetryInterval(10 * time.Second)
 	opts.SetConnectionAttemptHandler(func(u *url.URL, cfg *tls.Config) *tls.Config {
@@ -130,22 +103,22 @@ func NewMQTT(cfg *RunConfig) (*Mqtt, error) {
 	opts.SetOnConnectHandler(func(c MQTT.Client) {
 		opts := c.OptionsReader()
 		log.Printf("D: connect: %v", opts.ClientID())
-		token := mqtt.client.Subscribe(mqtt.Topic, byte(0), mqtt.msgHandler)
 
-		// Stats Topic
+		// Noise Topic
+		token := mqtt.client.Subscribe(cfg.MqttNoiseTopic, byte(0), mqtt.noiseMsgHandler)
 		if token.Wait() && token.Error() != nil {
-			log.Printf("E: subscribtion failed: %s (%v)", mqtt.Topic, token.Error())
+			log.Printf("E: subscribtion failed: %s (%v)", cfg.MqttNoiseTopic, token.Error())
 			// TODO figure out what to do here: sit under a tree crying and waiting to die?
 		} else {
-			log.Printf("D: subscribed to: %s", mqtt.Topic)
+			log.Printf("D: subscribed to: %s", cfg.MqttNoiseTopic)
 		}
 
 		// Telemetry Topic
-		token = mqtt.client.Subscribe(mqtt.TelemetryTopic, byte(0), mqtt.msgHandlerTelemetry)
+		token = mqtt.client.Subscribe(cfg.MqttTelemetryTopic, byte(0), mqtt.telemetryMsgHandler)
 		if token.Wait() && token.Error() != nil {
-			log.Printf("E: subscription failed: %s (%v)", mqtt.TelemetryTopic, token.Error())
+			log.Printf("E: subscription failed: %s (%v)", cfg.MqttTelemetryTopic, token.Error())
 		} else {
-			log.Printf("D: subscribed to: %s", mqtt.TelemetryTopic)
+			log.Printf("D: subscribed to: %s", cfg.MqttTelemetryTopic)
 		}
 	})
 	opts.SetReconnectingHandler(func(c MQTT.Client, o *MQTT.ClientOptions) {

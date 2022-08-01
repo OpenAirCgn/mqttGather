@@ -9,19 +9,17 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
 	"github.com/a2800276/logrotation"
-
-	"github.com/openaircgn/mqttGather"
+	ond "github.com/presseverykey/opennoise_daemon"
 )
 
 var (
 	version        string /* left for the linker to fill */
 	sqliteDBName   = flag.String("sqlite", "", "connect string to use for sqlite, when in doubt: provide a filename")
-	topic          = flag.String("topic", "", "topic to subscribe to") // todo, this should later be a plugin for sensors
+	noiseTopic     = flag.String("noise-topic", "", "topic to subscribe to for noise data")
 	telemetryTopic = flag.String("telemetry-topic", "", "topic to subscribe to for telemetry data")
-	host           = flag.String("host", "", "host to connect to")
-	clientId       = flag.String("clientID", "", "clientId to use for connection")
+	mqttHost       = flag.String("mqtt-host", "", "host to connect to")
+	mqttClientId   = flag.String("mqtt-client-id", "", "clientId to use for connection")
 	silent         = flag.Bool("silent", false, "psssh!")
 	config         = flag.String("c", "", "name of (optional) config file")
 	logDir         = flag.String("log-dir", "", "where to write logs, writes to stdout if not set")
@@ -32,34 +30,25 @@ var (
 func banner(w io.Writer) {
 	fmt.Fprintf(w, "%s ver %s\n", os.Args[0], version)
 }
-func summary(rc mqttGather.RunConfig, w io.Writer) {
+
+func summary(rc ond.RunConfig, w io.Writer) {
 	banner(w)
 	fmt.Fprintf(w, "sqlite connect: %s\n", rc.SqlLiteConnect)
-	fmt.Fprintf(w, "subscribing to: %s\n", rc.Topic)
-	fmt.Fprintf(w, "host          : %s\n", rc.Host)
-	fmt.Fprintf(w, "clientId      : %s\n", rc.ClientId)
+	fmt.Fprintf(w, "subscribing to: %s\n", rc.MqttNoiseTopic)
+	fmt.Fprintf(w, "host          : %s\n", rc.MqttHost)
+	fmt.Fprintf(w, "clientId      : %s\n", rc.MqttClientId)
 	fmt.Fprintf(w, "logDir        : %s\n", rc.LogDir)
 	if rc.SMSKey != "" {
 		fmt.Fprintf(w, "smsKey        : %s\n", "***")
 	} else {
 		fmt.Fprintf(w, "smsKey        : %s\n", "not set!")
 	}
-
 	if *config != "" {
 		fmt.Fprintf(w, "config file   : %s\n", *config)
 	}
 }
 
-func startAlert(cfg *mqttGather.RunConfig, mqtt *mqttGather.Mqtt) {
-	done := make(chan bool)
-	alert := mqttGather.NewAlerter(cfg, mqtt, done)
-	alert.Start()
-}
-
-func main() {
-	keepAlive := make(chan os.Signal)
-	signal.Notify(keepAlive, os.Interrupt, syscall.SIGTERM)
-
+func parseConfig() (*(ond.RunConfig), error) {
 	flag.Parse()
 
 	if *_version {
@@ -67,45 +56,55 @@ func main() {
 		os.Exit(0)
 	}
 
-	var rc *mqttGather.RunConfig
+	var rc *ond.RunConfig
 	var err error
-	if *config != "" {
-		if rc, err = mqttGather.LoadFromFile(*config); err != nil {
-			panic(err)
+
+	if *config != "" {	// config given: load from file
+		rc, err = ond.LoadFromFile(*config);
+		if err != nil {
+			return rc, err
 		}
-	} else {
-		rc = &mqttGather.RunConfig{}
+	} else {	//no config given: use individual args
+		rc = &ond.RunConfig{}
 	}
 	if *sqliteDBName != "" {
 		rc.SqlLiteConnect = *sqliteDBName
 	}
-	if *host != "" {
-		rc.Host = *host
+	if *mqttHost != "" {
+		rc.MqttHost = *mqttHost
 	}
-	if *topic != "" {
-		rc.Topic = *topic
+	if *noiseTopic != "" {
+		rc.MqttNoiseTopic = *noiseTopic
 	}
 	if *telemetryTopic != "" {
-		rc.TelemetryTopic = *telemetryTopic
+		rc.MqttTelemetryTopic = *telemetryTopic
 	}
-	if *clientId != "" {
-		rc.ClientId = *clientId
+	if *mqttClientId != "" {
+		rc.MqttClientId = *mqttClientId
 	}
-
 	if !*silent {
 		summary(*rc, os.Stderr)
 	}
-
 	if *logDir != "" {
 		rc.LogDir = *logDir
 	}
-
 	if *smsKey != "" {
 		rc.SMSKey = *smsKey
 	}
+	return rc, rc.Check()
+}
 
+func main() {
+	keepAlive := make(chan os.Signal)
+	signal.Notify(keepAlive, os.Interrupt, syscall.SIGTERM)
+
+	//parse args and/or config file
+	rc, err := parseConfig()
+	if err != nil {
+		panic(err)
+	}
+	
 	var logWriter io.Writer
-
 	if rc.LogDir != "" {
 		logWriter = &logrotation.Logrotation{
 			BaseFilename: "opennoise",
@@ -120,18 +119,40 @@ func main() {
 
 	summary(*rc, logWriter)
 
-	// Start Collecting
-	mqtt, err := mqttGather.NewMQTT(rc)
+	// Build database connection
+	db, err := ond.NewDatabase(rc.SqlLiteConnect)
+	if err != nil {
+		panic(err)
+	}
+
+	// Build mqtt connection
+	mqtt, err := ond.NewMQTT(rc)
 	if err != nil {
 		panic(err)
 	}
 	defer mqtt.Disconnect()
 
-	// start alerting
-
-	if rc.SMSKey != "" {
-		startAlert(rc, mqtt)
+	// Build SMS notifier
+	notifier, err := ond.NewSMSNotifier(rc.SMSKey)
+	if err != nil {
+		panic(err)
 	}
+
+	// Build data gather handler
+	gather, err := ond.NewNoiseGather(db)
+	if err != nil {
+		panic(err)
+	}
+
+	// build alert handler
+	alerter, err := ond.NewNoiseAlert(db, notifier)
+	if err != nil {
+		panic(err)
+	}
+
+	// start alerting
+	mqtt.Register(gather)
+	mqtt.Register(alerter)
 
 	<-keepAlive
 }

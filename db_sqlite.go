@@ -1,4 +1,4 @@
-package mqttGather
+package opennoise_daemon
 
 import (
 	"database/sql"
@@ -10,6 +10,7 @@ import (
 
 type SqliteDB struct {
 	db          *sql.DB
+	connectString string
 	deviceCache map[string]int64
 }
 
@@ -26,8 +27,9 @@ func NewDatabase(connectString string) (DB, error) {
 	}
 
 	return &SqliteDB{
-		db,
-		make(map[string]int64),
+		db: db,
+		connectString : connectString,
+		deviceCache : make(map[string]int64),
 	}, nil
 
 }
@@ -92,7 +94,9 @@ func (s *SqliteDB) LoadDeviceId(device_signifier string) (int64, error) {
 	}
 	return id.(int64), err
 }
+
 func (s *SqliteDB) lookupDevice(device_mac string) (deviceId int64, err error) {
+	//try to load from cache first
 	if deviceId, ok := s.deviceCache[device_mac]; ok {
 		return deviceId, nil
 	}
@@ -130,7 +134,7 @@ func (s *SqliteDB) insertDevice(signifier string) (int64, error) {
 
 // Persist Stats to DB.
 func (s *SqliteDB) Save(stats *DBAStats, t time.Time) (int64, error) {
-	device_id, err := s.lookupDevice(stats.Signifier)
+	device_id, err := s.lookupDevice(stats.DeviceSignifier)
 	if err != nil {
 		return -1, err
 	}
@@ -162,7 +166,7 @@ func (s *SqliteDB) Save(stats *DBAStats, t time.Time) (int64, error) {
 // This is the usual mode of saving as we have no idea when the sample originated
 // only when it was received.
 func (s *SqliteDB) SaveNow(stats *DBAStats) (int64, error) {
-	device_id, err := s.lookupDevice(stats.Signifier)
+	device_id, err := s.lookupDevice(stats.DeviceSignifier)
 	if err != nil {
 		return -1, err
 	}
@@ -208,7 +212,7 @@ func (s *SqliteDB) SaveTelemetry(t *Telemetry, ti time.Time) (int64, error) {
 }
 
 func (s *SqliteDB) saveMemory(t *Telemetry, ti time.Time) (int64, error) {
-	device_id, err := s.lookupDevice(t.Client)
+	device_id, err := s.lookupDevice(t.DeviceSignifier)
 	if err != nil {
 		return -1, err
 	}
@@ -230,7 +234,7 @@ func (s *SqliteDB) saveMemory(t *Telemetry, ti time.Time) (int64, error) {
 }
 
 func (s *SqliteDB) saveVersion(t *Telemetry, ti time.Time) (int64, error) {
-	device_id, err := s.lookupDevice(t.Client)
+	device_id, err := s.lookupDevice(t.DeviceSignifier)
 	if err != nil {
 		return -1, err
 	}
@@ -252,7 +256,7 @@ func (s *SqliteDB) saveVersion(t *Telemetry, ti time.Time) (int64, error) {
 }
 
 func (s *SqliteDB) saveMisc(t *Telemetry, ti time.Time) (int64, error) {
-	device_id, err := s.lookupDevice(t.Client)
+	device_id, err := s.lookupDevice(t.DeviceSignifier)
 	if err != nil {
 		return -1, err
 	}
@@ -444,6 +448,24 @@ AND
 func (s *SqliteDB) Close() {
 	s.db.Close()
 }
+
+// Closes and attempts a reconnect of the underlying database connection.
+func (s *SqliteDB) Reconnect() error {
+	if s.db != nil {
+		s.db.Close()
+		s.db = nil
+	}
+	s.deviceCache = make(map[string]int64)
+	db, err := sql.Open("sqlite3", s.connectString)
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+	s.db = db
+	return nil
+}
+
+
 
 // Creates all necessary database objects.
 func setupDB(db *sql.DB) error {
